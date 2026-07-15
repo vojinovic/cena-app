@@ -211,6 +211,14 @@
     border-top: 1px solid #f3f4f6;
   }
   .footer-note a { color: #6b7280; }
+  .lanci-svezina {
+    font-size: 11px;
+    color: #9ca3af;
+    line-height: 1.7;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .lanci-svezina .staro { color: #b45309; }
 
   @media (max-width: 420px) {
     body { padding: 0 10px 40px; }
@@ -271,13 +279,32 @@
       </div>
     </div>
     <div class="footer-note">
-      Podaci: <a href="https://data.gov.rs" target="_blank">data.gov.rs</a> · Ažurirano: __DATUM_AZURIRANJA__ · Rani prototip u razvoju
+      <div class="lanci-svezina" id="lanci-svezina"></div>
+      Podaci: <a href="https://data.gov.rs" target="_blank">data.gov.rs</a> · Poslednja provera: __DATUM_AZURIRANJA__ · Rani prototip u razvoju
     </div>
   </footer>
 </div>
 
 <script>
 const DATA = __DATA_PLACEHOLDER__;
+const LANCI_DATUMI = __LANCI_DATUMI__;
+
+(function prikaziSvezinu() {
+  const el = document.getElementById('lanci-svezina');
+  if (!el || !LANCI_DATUMI || Object.keys(LANCI_DATUMI).length === 0) return;
+  const danas = new Date();
+  const delovi = Object.entries(LANCI_DATUMI).map(([lanac, d]) => {
+    const m = d.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+    let staro = false;
+    if (m) {
+      const datum = new Date(+m[3], +m[2] - 1, +m[1]);
+      staro = (danas - datum) / 86400000 > 30;
+    }
+    const cls = staro ? ' class="staro"' : '';
+    return '<span' + cls + '>' + lanac + ': ' + d + '</span>';
+  });
+  el.innerHTML = 'Cene važe od (po lancu): ' + delovi.join(' · ');
+})();
 const BROJ_PROIZVODA = DATA.length;
 const BROJ_LANACA = 10;
 const PREDLOZI = ['mleko', 'kafa', 'hleb', 'ulje', 'deterdžent', 'jaja', 'sir', 'pivo'];
