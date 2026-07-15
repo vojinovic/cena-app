@@ -5,226 +5,321 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <title>Uporedi cene</title>
 <style>
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #f9fafb;
-    margin: 0;
-    padding: 0 16px 40px;
-    color: #111827;
+  :root {
+    --papir: #fafaf8;
+    --karta: #ffffff;
+    --ivica: #e8e7e2;
+    --mastilo: #17181a;
+    --siva: #6e6e68;
+    --siva-svetla: #a3a29b;
+    --zelena: #157a3f;
+    --etiketa: #ffdd57;
+    --etiketa-ink: #4a3f00;
+    --staro: #b45309;
+    --fokus: rgba(23,24,26,.12);
   }
-  .wrap { max-width: 680px; margin: 0 auto; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    font-family: 'Instrument Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--papir);
+    margin: 0;
+    padding: 0 16px 48px;
+    color: var(--mastilo);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .wrap { max-width: 660px; margin: 0 auto; }
 
+  /* ---------- header ---------- */
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 20px 0 16px;
+    padding: 22px 0 14px;
     flex-wrap: wrap;
   }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand svg { flex-shrink: 0; }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand-tag {
+    width: 34px; height: 34px;
+    background: var(--etiketa);
+    border-radius: 6px 6px 6px 2px;
+    transform: rotate(-6deg);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 1px 0 rgba(0,0,0,.08);
+  }
+  .brand-tag svg { transform: rotate(6deg); }
   .brand-text h1 {
-    font-size: 17px;
-    font-weight: 600;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
     margin: 0;
-    line-height: 1.2;
+    line-height: 1.15;
   }
   .brand-text .tagline {
-    font-size: 12px;
-    color: #6b7280;
+    font-size: 12.5px;
+    color: var(--siva);
     margin-top: 1px;
   }
   .header-meta {
-    font-size: 12px;
-    color: #6b7280;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--siva);
     text-align: right;
-    line-height: 1.5;
+    line-height: 1.6;
   }
 
-  .search-box { position: relative; margin-bottom: 12px; }
+  /* ---------- sticky search ---------- */
+  .search-shell {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--papir);
+    padding: 8px 0 10px;
+    margin: 0 -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+    border-bottom: 1px solid transparent;
+    transition: border-color .15s ease;
+  }
+  .search-shell.scrolled { border-bottom-color: var(--ivica); }
+  .search-box { position: relative; }
   .search-icon {
     position: absolute;
-    left: 14px;
+    left: 15px;
     top: 50%;
     transform: translateY(-50%);
-    color: #9ca3af;
+    color: var(--siva-svetla);
     pointer-events: none;
   }
   input[type="text"] {
     width: 100%;
     height: 52px;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 0 42px 0 42px;
+    border: 1.5px solid var(--ivica);
+    border-radius: 14px;
+    padding: 0 44px;
     font-size: 16px;
     font-family: inherit;
-    background: #fff;
+    background: var(--karta);
+    color: var(--mastilo);
+    transition: border-color .12s ease, box-shadow .12s ease;
   }
+  input[type="text"]::placeholder { color: var(--siva-svetla); }
   input[type="text"]:focus {
     outline: none;
-    border-color: #9ca3af;
-    box-shadow: 0 0 0 3px rgba(17,24,39,0.05);
+    border-color: var(--mastilo);
+    box-shadow: 0 0 0 4px var(--fokus);
   }
   .clear-btn {
     position: absolute;
     right: 10px;
     top: 50%;
     transform: translateY(-50%);
-    width: 28px;
-    height: 28px;
+    width: 30px; height: 30px;
     border: none;
-    background: #f3f4f6;
+    background: var(--papir);
     border-radius: 50%;
-    color: #6b7280;
-    font-size: 15px;
+    color: var(--siva);
+    font-size: 14px;
     cursor: pointer;
     display: none;
     align-items: center;
     justify-content: center;
   }
   .clear-btn.visible { display: flex; }
+  .clear-btn:focus-visible { outline: 2px solid var(--mastilo); outline-offset: 1px; }
 
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 0 0 8px;
-  }
+  /* ---------- chips ---------- */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 6px; }
   .chip {
-    border: 1px solid #e5e7eb;
-    background: #fff;
-    border-radius: 20px;
+    border: 1px solid var(--ivica);
+    background: var(--karta);
+    border-radius: 9px 9px 9px 3px;
     padding: 7px 14px;
-    font-size: 13px;
-    color: #374151;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: var(--mastilo);
     cursor: pointer;
+    transition: border-color .1s ease, background .1s ease;
   }
-  .chip:hover { border-color: #9ca3af; }
+  .chip:hover { border-color: var(--siva); }
+  .chip:focus-visible { outline: 2px solid var(--mastilo); outline-offset: 1px; }
 
+  /* ---------- controls ---------- */
   .controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 8px;
-    margin-bottom: 16px;
+    margin: 10px 0 14px;
     flex-wrap: wrap;
   }
-  .meta { font-size: 13px; color: #6b7280; }
+  .meta { font-size: 13px; color: var(--siva); }
   select {
     height: 38px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: #fff;
+    border: 1px solid var(--ivica);
+    border-radius: 9px;
+    background: var(--karta);
     font-size: 13px;
     font-family: inherit;
     padding: 0 10px;
-    color: #111827;
+    color: var(--mastilo);
   }
-  select:focus { outline: none; border-color: #6b7280; }
+  select:focus { outline: none; border-color: var(--mastilo); }
 
+  /* ---------- kartica ---------- */
   .card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 14px 16px;
-    margin-bottom: 10px;
+    background: var(--karta);
+    border: 1px solid var(--ivica);
+    border-radius: 14px;
+    padding: 15px 16px 13px;
+    margin-bottom: 11px;
   }
   .card-head {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     gap: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
-  .card-title-wrap { display: flex; gap: 10px; align-items: flex-start; }
-  .cat-icon {
-    font-size: 22px;
-    line-height: 1.2;
+  .card-title-wrap { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+  .cat-icon { font-size: 21px; line-height: 1.25; flex-shrink: 0; }
+  .card-title {
+    font-weight: 600;
+    font-size: 14.5px;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+  }
+  .card-brend { font-size: 12px; color: var(--siva); margin-top: 2px; }
+  .card-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--siva);
+    white-space: nowrap;
     flex-shrink: 0;
   }
-  .card-title { font-weight: 500; font-size: 15px; line-height: 1.3; }
-  .card-brend { font-size: 12px; color: #6b7280; margin-top: 2px; }
-  .card-count { font-size: 12px; color: #6b7280; white-space: nowrap; text-align: right; flex-shrink: 0; }
 
-  .rows { display: flex; flex-direction: column; gap: 6px; }
-  .row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; min-height: 20px; }
-  .row.best .store { font-weight: 500; color: #111827; }
-  .row.best .price { font-weight: 500; color: #185fa5; }
-  .row .store { color: #374151; }
+  .rows { display: flex; flex-direction: column; }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13.5px;
+    padding: 5px 0;
+    min-height: 24px;
+    gap: 10px;
+  }
+  .row + .row { border-top: 1px solid #f3f2ee; }
+  .row .store { color: #3d3e39; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .price {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--mastilo);
+  }
+  .row.best .store { font-weight: 600; color: var(--mastilo); }
+  .row.best .price { font-weight: 600; }
+
+  /* signature: zuta etiketa */
   .badge-best {
-    display: inline-block;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #22c55e;
-    margin-left: 8px;
-    vertical-align: middle;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    background: var(--etiketa);
+    color: var(--etiketa-ink);
+    padding: 2.5px 7px 2px;
+    border-radius: 5px 5px 5px 2px;
+    flex-shrink: 0;
   }
-  .price { font-family: 'JetBrains Mono', 'SF Mono', monospace; font-variant-numeric: tabular-nums; }
-
-  .usteda-line {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #e5e7eb;
-    font-size: 13px;
-    color: #374151;
-  }
-  .usteda-line strong { color: #111827; }
 
   .more-toggle {
     font-size: 13px;
-    color: #185fa5;
+    color: var(--siva);
     cursor: pointer;
     margin-top: 8px;
-    padding: 6px 0;
+    padding: 5px 0;
     display: inline-block;
     -webkit-user-select: none;
     user-select: none;
+    text-decoration: underline;
+    text-decoration-color: var(--ivica);
+    text-underline-offset: 3px;
   }
-  .empty { text-align: center; color: #6b7280; padding: 30px 20px; font-size: 14px; }
+  .more-toggle:hover { color: var(--mastilo); }
 
-  footer {
-    margin-top: 32px;
-    padding-top: 24px;
-    border-top: 1px solid #e5e7eb;
+  /* odluka-linija kao dno racuna */
+  .usteda-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1.5px dashed var(--ivica);
+    font-size: 13.5px;
+    color: #3d3e39;
   }
+  .usteda-line strong { color: var(--mastilo); font-weight: 600; }
+  .usteda-iznos {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    color: var(--zelena);
+    white-space: nowrap;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--siva);
+    padding: 36px 20px;
+    font-size: 14px;
+  }
+
+  /* ---------- footer ---------- */
+  footer { margin-top: 36px; padding-top: 26px; border-top: 1px solid var(--ivica); }
   .trust-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 16px;
-    margin-bottom: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 18px;
+    margin-bottom: 22px;
   }
   .trust-item { display: flex; gap: 10px; align-items: flex-start; }
-  .trust-item svg { flex-shrink: 0; color: #6b7280; margin-top: 1px; }
-  .trust-item .t-title { font-size: 13px; font-weight: 500; color: #111827; }
-  .trust-item .t-desc { font-size: 12px; color: #6b7280; margin-top: 2px; line-height: 1.4; }
+  .trust-item svg { flex-shrink: 0; color: var(--siva); margin-top: 1px; }
+  .trust-item .t-title { font-size: 13px; font-weight: 600; }
+  .trust-item .t-desc { font-size: 12px; color: var(--siva); margin-top: 2px; line-height: 1.45; }
+  .lanci-svezina {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    color: var(--siva-svetla);
+    line-height: 1.9;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .lanci-svezina .staro { color: var(--staro); }
   .footer-note {
     text-align: center;
     font-size: 12px;
-    color: #9ca3af;
-    padding-top: 16px;
-    border-top: 1px solid #f3f4f6;
+    color: var(--siva-svetla);
+    padding-top: 14px;
+    border-top: 1px solid #f3f2ee;
   }
-  .footer-note a { color: #6b7280; }
-  .lanci-svezina {
-    font-size: 11px;
-    color: #9ca3af;
-    line-height: 1.7;
-    margin-bottom: 10px;
-    text-align: center;
-  }
-  .lanci-svezina .staro { color: #b45309; }
+  .footer-note a { color: var(--siva); }
 
-  @media (max-width: 420px) {
-    body { padding: 0 10px 40px; }
-    .card { padding: 12px 12px; }
+  @media (max-width: 430px) {
+    body { padding: 0 10px 40px; font-size: 14.5px; }
+    .search-shell { margin: 0 -10px; padding-left: 10px; padding-right: 10px; }
+    .card { padding: 13px 13px 12px; border-radius: 12px; }
     .card-title { font-size: 14px; }
-    .header-meta { text-align: left; width: 100%; }
+    .header-meta { display: none; }
   }
 </style>
 </head>
@@ -232,7 +327,9 @@
 <div class="wrap">
   <header>
     <div class="brand">
-      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      <div class="brand-tag">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4a3f00" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.3 9.3a2 2 0 0 0 2.8 0l7.2-7.2a2 2 0 0 0 0-2.8Z"/><circle cx="7.5" cy="7.5" r=".5" fill="#4a3f00"/></svg>
+      </div>
       <div class="brand-text">
         <h1>Uporedi cene</h1>
         <div class="tagline">Nađi najjeftinije. Uštedi svaki dan.</div>
@@ -241,17 +338,19 @@
     <div class="header-meta" id="header-meta"></div>
   </header>
 
-  <div class="search-box">
-    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-    <input type="text" id="q" placeholder="npr. mleko, plazma, kafa, deterdžent..." autocomplete="off">
-    <button class="clear-btn" id="clear">✕</button>
+  <div class="search-shell" id="search-shell">
+    <div class="search-box">
+      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="q" placeholder="npr. mleko, plazma, kafa, deterdžent..." autocomplete="off">
+      <button class="clear-btn" id="clear" aria-label="Obriši pretragu">✕</button>
+    </div>
   </div>
 
   <div class="chips" id="chips"></div>
 
   <div class="controls">
     <div class="meta" id="meta"></div>
-    <select id="sort">
+    <select id="sort" aria-label="Sortiranje rezultata">
       <option value="prodavnice">Najviše prodavnica</option>
       <option value="usteda">Najveća ušteda %</option>
       <option value="naziv">Naziv A-Ž</option>
@@ -262,25 +361,25 @@
   <footer>
     <div class="trust-grid">
       <div class="trust-item">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         <div><div class="t-title">Uštedi novac</div><div class="t-desc">Uporedi cene istog proizvoda u 10 najvećih lanaca.</div></div>
       </div>
       <div class="trust-item">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
-        <div><div class="t-title">Zvanični podaci</div><div class="t-desc">Direktno sa Nacionalnog portala otvorenih podataka.</div></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
+        <div><div class="t-title">Zvanični podaci</div><div class="t-desc">Sa portala otvorenih podataka i direktno od trgovaca.</div></div>
       </div>
       <div class="trust-item">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <div><div class="t-title">Nedeljno ažurno</div><div class="t-desc">Trgovci su u obavezi da šalju cenovnike svake nedelje.</div></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div><div class="t-title">Proveravamo dnevno</div><div class="t-desc">Svako jutro povlačimo najnovije objavljene cenovnike.</div></div>
       </div>
       <div class="trust-item">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>
-        <div><div class="t-title">Bez slika, radi svuda</div><div class="t-desc">Lagana stranica — radi i na sporijem telefonu u prodavnici.</div></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <div><div class="t-title">Brzo i lagano</div><div class="t-desc">Bez slika i šuma — radi i na sporijem telefonu u radnji.</div></div>
       </div>
     </div>
+    <div class="lanci-svezina" id="lanci-svezina"></div>
     <div class="footer-note">
-      <div class="lanci-svezina" id="lanci-svezina"></div>
-      Podaci: <a href="https://data.gov.rs" target="_blank">data.gov.rs</a> · Poslednja provera: __DATUM_AZURIRANJA__ · Rani prototip u razvoju
+      Podaci: <a href="https://data.gov.rs" target="_blank">data.gov.rs</a> + sajtovi trgovaca · Poslednja provera: __DATUM_AZURIRANJA__ · Rani prototip u razvoju
     </div>
   </footer>
 </div>
@@ -288,6 +387,15 @@
 <script>
 const DATA = __DATA_PLACEHOLDER__;
 const LANCI_DATUMI = __LANCI_DATUMI__;
+const BROJ_PROIZVODA = DATA.length;
+const PREDLOZI = ['mleko', 'kafa', 'hleb', 'ulje', 'deterdžent', 'jaja', 'sir', 'pivo'];
+
+document.getElementById('header-meta').innerHTML =
+  BROJ_PROIZVODA.toLocaleString('sr-RS') + ' proizvoda<br>10 lanaca';
+
+document.getElementById('chips').innerHTML = PREDLOZI.map(p =>
+  '<button class="chip" data-term="' + p + '">' + p + '</button>'
+).join('');
 
 (function prikaziSvezinu() {
   const el = document.getElementById('lanci-svezina');
@@ -301,20 +409,10 @@ const LANCI_DATUMI = __LANCI_DATUMI__;
       staro = (danas - datum) / 86400000 > 30;
     }
     const cls = staro ? ' class="staro"' : '';
-    return '<span' + cls + '>' + lanac + ': ' + d + '</span>';
+    return '<span' + cls + '>' + lanac + ' ' + d + '</span>';
   });
-  el.innerHTML = 'Cene važe od (po lancu): ' + delovi.join(' · ');
+  el.innerHTML = 'Cene važe od: ' + delovi.join(' · ');
 })();
-const BROJ_PROIZVODA = DATA.length;
-const BROJ_LANACA = 10;
-const PREDLOZI = ['mleko', 'kafa', 'hleb', 'ulje', 'deterdžent', 'jaja', 'sir', 'pivo'];
-
-document.getElementById('header-meta').innerHTML =
-  BROJ_PROIZVODA.toLocaleString('sr-RS') + ' proizvoda<br>' + BROJ_LANACA + ' trgovinskih lanaca';
-
-document.getElementById('chips').innerHTML = PREDLOZI.map(p =>
-  '<button class="chip" data-term="' + p + '">' + p + '</button>'
-).join('');
 
 const results = document.getElementById('results');
 const meta = document.getElementById('meta');
@@ -322,6 +420,11 @@ const input = document.getElementById('q');
 const sortSelect = document.getElementById('sort');
 const clearBtn = document.getElementById('clear');
 const chipsEl = document.getElementById('chips');
+const searchShell = document.getElementById('search-shell');
+
+window.addEventListener('scroll', () => {
+  searchShell.classList.toggle('scrolled', window.scrollY > 60);
+}, { passive: true });
 
 function formatCena(c) {
   return c.toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -331,6 +434,12 @@ function ustedaPct(cene) {
   const best = cene[0][1];
   const worst = cene[cene.length - 1][1];
   return worst > 0 ? Math.round((worst - best) / worst * 100) : 0;
+}
+
+function napraviRed(c, i) {
+  const cls = i === 0 ? 'best' : '';
+  const badge = i === 0 ? '<span class="badge-best">najjeftinije</span>' : '';
+  return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
 }
 
 function render() {
@@ -362,7 +471,7 @@ function render() {
   meta.textContent = ukupno + ' rezultata' + (ukupno > 40 ? ' (prikazano prvih 40)' : '');
 
   if (matches.length === 0) {
-    results.innerHTML = '<div class="empty">Nema rezultata za "' + input.value + '"</div>';
+    results.innerHTML = '<div class="empty">Nema rezultata za "' + input.value + '". Probaj kraću reč — npr. "mlek" umesto "mleko 2.8%".</div>';
     return;
   }
 
@@ -371,24 +480,17 @@ function render() {
     const pct = ustedaPct(cene);
     const prikazano = cene.slice(0, 4);
     const ostatak = cene.length - prikazano.length;
-
-    const napraviRed = (c, i) => {
-      const cls = i === 0 ? 'best' : '';
-      const badge = i === 0 ? '<span class="badge-best"></span>' : '';
-      return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
-    };
-
     const rowsHtml = prikazano.map(napraviRed).join('');
     const iznosUstede = cene[cene.length - 1][1] - cene[0][1];
 
     return '<div class="card">' +
       '<div class="card-head">' +
         '<div class="card-title-wrap"><span class="cat-icon">' + (ikona || '🛒') + '</span><div><div class="card-title">' + naziv + '</div>' + (brend ? '<div class="card-brend">' + brend + '</div>' : '') + '</div></div>' +
-        '<div class="card-count">' + cene.length + ' prodavnica</div>' +
+        '<div class="card-count">' + cene.length + ' prod.</div>' +
       '</div>' +
       '<div class="rows" id="rows-' + idx + '">' + rowsHtml + '</div>' +
-      (ostatak > 0 ? '<div class="more-toggle" data-idx="' + idx + '" data-open="0">Prikaži još ' + ostatak + '...</div>' : '') +
-      (iznosUstede > 0 ? '<div class="usteda-line">👉 Kupi u <strong>' + cene[0][0] + '</strong> — uštedi ' + formatCena(iznosUstede) + ' RSD (' + pct + '%)</div>' : '') +
+      (ostatak > 0 ? '<div class="more-toggle" data-idx="' + idx + '" data-open="0">Prikaži još ' + ostatak + '</div>' : '') +
+      (iznosUstede > 0 ? '<div class="usteda-line"><span>Kupi u <strong>' + cene[0][0] + '</strong></span><span class="usteda-iznos">−' + formatCena(iznosUstede) + ' RSD (' + pct + '%)</span></div>' : '') +
     '</div>';
   }).join('');
 
@@ -398,17 +500,12 @@ function render() {
       const cene = matches[idx][2];
       const rowsEl = document.getElementById('rows-' + idx);
       const isOpen = el.dataset.open === '1';
-      const napraviRedLokalno = (c, i) => {
-        const cls = i === 0 ? 'best' : '';
-        const badge = i === 0 ? '<span class="badge-best"></span>' : '';
-        return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
-      };
       if (isOpen) {
-        rowsEl.innerHTML = cene.slice(0, 4).map(napraviRedLokalno).join('');
-        el.textContent = 'Prikaži još ' + (cene.length - 4) + '...';
+        rowsEl.innerHTML = cene.slice(0, 4).map(napraviRed).join('');
+        el.textContent = 'Prikaži još ' + (cene.length - 4);
         el.dataset.open = '0';
       } else {
-        rowsEl.innerHTML = cene.map(napraviRedLokalno).join('');
+        rowsEl.innerHTML = cene.map(napraviRed).join('');
         el.textContent = 'Sakrij';
         el.dataset.open = '1';
       }
