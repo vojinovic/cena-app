@@ -103,10 +103,33 @@
     min-height: 20px;
   }
   .row.best .store { font-weight: 500; }
-  .row.best .price { font-weight: 500; color: #27500a; }
-  .row.worst .price { color: #791f1f; }
+  .row.best .price { font-weight: 500; color: #185fa5; }
   .row .store { color: #444441; }
   .row.best .store { color: #2c2c2a; }
+  .badge-best {
+    font-size: 10px;
+    font-weight: 500;
+    background: #e6f1fb;
+    color: #0c447c;
+    padding: 1px 7px;
+    border-radius: 5px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .usteda-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eeece3;
+    font-size: 13px;
+    color: #5f5e5a;
+  }
+  .usteda-line .iznos {
+    font-weight: 500;
+    color: #27500a;
+  }
   .more-toggle {
     font-size: 13px;
     color: #185fa5;
@@ -219,20 +242,23 @@ function render() {
     const ostatak = cene.length - prikazano.length;
 
     const napraviRed = (c, i, total) => {
-      const cls = i === 0 ? 'best' : (i === total - 1 && total > 1 ? 'worst' : '');
-      return '<div class="row ' + cls + '"><span class="store">' + c[0] + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
+      const cls = i === 0 ? 'best' : '';
+      const badge = i === 0 ? '<span class="badge-best">najjeftinije</span>' : '';
+      return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
     };
 
     const rowsHtml = prikazano.map((c, i) => napraviRed(c, i, cene.length)).join('');
-    const sveRowsHtml = cene.map((c, i) => napraviRed(c, i, cene.length)).join('');
+
+    const iznosUstede = cene[cene.length - 1][1] - cene[0][1];
 
     return '<div class="card">' +
       '<div class="card-head">' +
         '<div><div class="card-title">' + naziv + '</div>' + (brend ? '<div class="card-brend">' + brend + '</div>' : '') + '</div>' +
-        '<div class="card-count">' + cene.length + ' prodavnica' + (pct > 0 ? '<br><span class="badge-save">−' + pct + '%</span>' : '') + '</div>' +
+        '<div class="card-count">' + cene.length + ' prodavnica</div>' +
       '</div>' +
       '<div class="rows" id="rows-' + idx + '">' + rowsHtml + '</div>' +
       (ostatak > 0 ? '<div class="more-toggle" data-idx="' + idx + '" data-open="0">Prikaži još ' + ostatak + '...</div>' : '') +
+      (iznosUstede > 0 ? '<div class="usteda-line"><span>Ušteda naspram najskuplje</span><span class="iznos">' + formatCena(iznosUstede) + ' RSD (' + pct + '%)</span></div>' : '') +
     '</div>';
   }).join('');
 
@@ -243,18 +269,17 @@ function render() {
       const cene = p[2];
       const rowsEl = document.getElementById('rows-' + idx);
       const isOpen = el.dataset.open === '1';
+      const napraviRedLokalno = (c, i) => {
+        const cls = i === 0 ? 'best' : '';
+        const badge = i === 0 ? '<span class="badge-best">najjeftinije</span>' : '';
+        return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
+      };
       if (isOpen) {
-        rowsEl.innerHTML = cene.slice(0, 4).map((c, i) => {
-          const cls = i === 0 ? 'best' : '';
-          return '<div class="row ' + cls + '"><span class="store">' + c[0] + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
-        }).join('');
+        rowsEl.innerHTML = cene.slice(0, 4).map(napraviRedLokalno).join('');
         el.textContent = 'Prikaži još ' + (cene.length - 4) + '...';
         el.dataset.open = '0';
       } else {
-        rowsEl.innerHTML = cene.map((c, i) => {
-          const cls = i === 0 ? 'best' : (i === cene.length - 1 && cene.length > 1 ? 'worst' : '');
-          return '<div class="row ' + cls + '"><span class="store">' + c[0] + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
-        }).join('');
+        rowsEl.innerHTML = cene.map(napraviRedLokalno).join('');
         el.textContent = 'Sakrij';
         el.dataset.open = '1';
       }
