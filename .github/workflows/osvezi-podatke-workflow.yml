@@ -1,0 +1,42 @@
+name: Osvezi podatke (dnevni pipeline)
+
+on:
+  # Svaki dan u 05:30 UTC (06:30/07:30 po srpskom vremenu).
+  # Trgovci salju cenovnike ponedeljkom, ali dnevno hvatamo i kasnjenja.
+  schedule:
+    - cron: '30 5 * * *'
+  # I rucno pokretanje sa Actions taba
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # potrebno da workflow moze da komituje osvezenu stranicu
+
+jobs:
+  osvezi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preuzmi kod iz repo-a
+        uses: actions/checkout@v4
+
+      - name: Podesi Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instaliraj zavisnosti
+        run: pip install requests
+
+      - name: Povuci sveze podatke i regenerisi stranicu
+        run: python data-pipeline/osvezi_podatke.py
+
+      - name: Komituj osvezenu stranicu
+        run: |
+          git config user.name "pipeline-bot"
+          git config user.email "actions@github.com"
+          git add app/uporedi-cene-mvp.html
+          if git diff --cached --quiet; then
+            echo "Nema promena - podaci su isti kao juce."
+          else
+            git commit -m "Automatsko osvezavanje podataka ($(date +%d.%m.%Y))"
+            git push
+          fi
