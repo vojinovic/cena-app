@@ -117,18 +117,14 @@
     vertical-align: middle;
   }
   .usteda-line {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     margin-top: 10px;
     padding-top: 10px;
     border-top: 1px solid #eeece3;
     font-size: 13px;
-    color: #5f5e5a;
+    color: #444441;
   }
-  .usteda-line .iznos {
-    font-weight: 500;
-    color: #27500a;
+  .usteda-line strong {
+    color: #2c2c2a;
   }
   .more-toggle {
     font-size: 13px;
@@ -258,7 +254,7 @@ function render() {
       '</div>' +
       '<div class="rows" id="rows-' + idx + '">' + rowsHtml + '</div>' +
       (ostatak > 0 ? '<div class="more-toggle" data-idx="' + idx + '" data-open="0">Prikaži još ' + ostatak + '...</div>' : '') +
-      (iznosUstede > 0 ? '<div class="usteda-line"><span>Ušteda naspram najskuplje</span><span class="iznos">' + formatCena(iznosUstede) + ' RSD (' + pct + '%)</span></div>' : '') +
+      (iznosUstede > 0 ? '<div class="usteda-line">👉 Kupi u <strong>' + cene[0][0] + '</strong> — uštedi ' + formatCena(iznosUstede) + ' RSD (' + pct + '%)</div>' : '') +
     '</div>';
   }).join('');
 
