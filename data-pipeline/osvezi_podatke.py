@@ -37,12 +37,29 @@ import requests
 API_URL = "https://data.gov.rs/api/1/datasets/{slug}/"
 USER_AGENT = "cena-app-pipeline/1.0 (github.com/vojinovic/cena-app)"
 
+# ============================================================
+# DIREKTNI IZVORI — trgovci koji objavljuju dnevne cenovnike na
+# svom sajtu (po cl. 6 novog Zakona o zastiti potrosaca), jer su
+# prestali da salju na data.gov.rs portal.
+#
+# Maxi: static.maxi.rs/assets/pricelist/{DD-MM-YYYY}/{FAJL}_{YYYYMMDD}.csv
+# Fajl je cenovnik JEDNE prodavnice (reprezentativna, Beograd),
+# format: BARKOD;NAZIV;REDOVNA CENA;CENA PO JM;SNIZENA CENA
+# (cene sa " rsd" sufiksom, delimiter ;, UTF-8 sa BOM)
+# ============================================================
+MAXI_STORE = "201_BUKOVIK_TAKOVSKA_9_STARI_GRAD_BEOGRAD"
+MAXI_URL_TEMPLATE = (
+    "https://static.maxi.rs/assets/pricelist/"
+    "{dd}-{mm}-{yyyy}/" + MAXI_STORE + "_{yyyy}{mm}{dd}.csv"
+)
+
 # 10 velikih lanaca: prikazno ime -> slug na data.gov.rs
 LANCI = {
     "Lidl":            "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-13",
     "Idea":            "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-7",
     "Dis":             "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-8",
-    "Maxi":            "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-27",
+    # Maxi vise NE ide preko portala (zastareo, feb 2026) — ima direktan
+    # dnevni izvor na static.maxi.rs, vidi preuzmi_maxi_direktno()
     "Univerexport":    "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-12",
     "Gomex":           "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-23",
     "Aman":            "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-16",
@@ -173,6 +190,71 @@ def ikona_za(kat):
     return IKONE.get(k, "🛒")
 
 
+def parsiraj_maxi_cenu(s):
+    """Maxi cene dolaze kao '749.99 rsd' — skidamo sufiks pa parsiramo."""
+    s = (s or "").strip().lower().replace("rsd", "").strip()
+    return parsiraj_cenu(s)
+
+
+def preuzmi_maxi_direktno():
+    """
+    Povlaci dnevni Maxi cenovnik direktno sa static.maxi.rs (objavljen
+    po cl. 6 Zakona o zastiti potrosaca). Proba danas, pa unazad do 7
+    dana (fajl za tekuci dan ponekad kasni).
+
+    Vraca (redovi, datum) u istom formatu kao preuzmi_i_parsiraj().
+    """
+    from datetime import timedelta
+
+    for pomak in range(0, 7):
+        datum = datetime.now() - timedelta(days=pomak)
+        url = MAXI_URL_TEMPLATE.format(
+            dd=datum.strftime("%d"), mm=datum.strftime("%m"), yyyy=datum.strftime("%Y")
+        )
+        try:
+            resp = requests.get(url, timeout=60, headers={"User-Agent": USER_AGENT})
+            if resp.status_code != 200 or len(resp.content) < 1000:
+                continue
+
+            tekst = resp.content.decode("utf-8-sig", errors="replace")
+            reader = csv.DictReader(io.StringIO(tekst), delimiter=";")
+
+            col_barkod = nadji_kolonu(reader.fieldnames, ["BARKOD PROIZVODA"])
+            col_naziv = nadji_kolonu(reader.fieldnames, ["NAZIV PROIZVODA"])
+            col_redovna = nadji_kolonu(reader.fieldnames, ["REDOVNA CENA"])
+            col_snizena = nadji_kolonu(reader.fieldnames, ["SNIZENA CENA"])
+
+            if not col_barkod or not col_redovna:
+                log(f"[Maxi direktno] Neocekivan header: {reader.fieldnames}")
+                continue
+
+            redovi = []
+            for row in reader:
+                bk = (row.get(col_barkod) or "").strip()
+                if not bk or not bk.isdigit() or len(bk) < 8:
+                    continue
+                redovna = parsiraj_maxi_cenu(row.get(col_redovna))
+                if redovna is None or redovna <= 0:
+                    continue
+                snizena = parsiraj_maxi_cenu(row.get(col_snizena)) if col_snizena else None
+                cena = snizena if (snizena and snizena > 0) else redovna
+                redovi.append({
+                    "barkod": bk,
+                    "naziv": (row.get(col_naziv) or "").strip(),
+                    "brend": "",   # Maxi fajl nema kolonu brenda
+                    "kat": "",     # ni kategorije — ikona ce biti default
+                    "cena": cena,
+                })
+
+            if redovi:
+                log(f"[Maxi direktno] {len(redovi)} zapisa za {datum.strftime('%d.%m.%Y')}")
+                return redovi, datum
+        except requests.exceptions.RequestException as e:
+            log(f"[Maxi direktno] {datum.strftime('%d.%m.%Y')}: {e}")
+
+    raise RuntimeError("Maxi direktni cenovnik nedostupan za poslednjih 7 dana")
+
+
 def preuzmi_i_parsiraj(ime_lanca, url):
     """
     Skida ceo CSV (strim na disk), parsira red po red, i vraca listu
@@ -270,6 +352,26 @@ def main():
     statusi = []
     lanci_datumi = {}
 
+    # --- Direktni izvori (sajtovi trgovaca) ---
+    try:
+        maxi_redovi, maxi_datum = preuzmi_maxi_direktno()
+        for z in maxi_redovi:
+            bk = z["barkod"]
+            if "Maxi" not in po_barkodu[bk] or z["cena"] < po_barkodu[bk]["Maxi"]:
+                po_barkodu[bk]["Maxi"] = z["cena"]
+            if "_naziv" not in po_barkodu[bk]:
+                po_barkodu[bk]["_naziv"] = z["naziv"]
+                po_barkodu[bk]["_brend"] = ""
+                po_barkodu[bk]["_ikona"] = "🛒"
+        statusi.append(f"[OK] Maxi (direktno sa maxi.rs): {len(maxi_redovi)} zapisa, "
+                       f"datum {maxi_datum.date()}")
+        lanci_datumi["Maxi"] = maxi_datum.strftime("%d.%m.%Y.")
+    except Exception as e:
+        statusi.append(f"[GRESKA] Maxi (direktno): {e}")
+        log(f"[Maxi direktno] GRESKA: {e}")
+
+    # --- Portal izvori (data.gov.rs) ---
+
     for ime, slug in LANCI.items():
         try:
             urls = resolve_csv_urls(slug)
@@ -301,8 +403,13 @@ def main():
                     po_barkodu[bk]["_naziv"] = z["naziv"]
                     po_barkodu[bk]["_brend"] = z["brend"]
                     po_barkodu[bk]["_ikona"] = ikona_za(z["kat"])
-                elif not po_barkodu[bk]["_brend"] and z["brend"]:
-                    po_barkodu[bk]["_brend"] = z["brend"]
+                else:
+                    # dopuni bogatije podatke (Maxi direktni izvor nema
+                    # brend/kategoriju, pa ih preuzimamo od portal-izvora)
+                    if not po_barkodu[bk]["_brend"] and z["brend"]:
+                        po_barkodu[bk]["_brend"] = z["brend"]
+                    if po_barkodu[bk].get("_ikona", "🛒") == "🛒" and z["kat"]:
+                        po_barkodu[bk]["_ikona"] = ikona_za(z["kat"])
             statusi.append(
                 f"[OK] {ime}: {len(redovi)} zapisa, datum {globalni_max.date()} "
                 f"(od {len(urls)} resursa)"
