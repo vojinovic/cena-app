@@ -3,15 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <title>Uporedi cene</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #f4f3ef;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f9fafb;
     margin: 0;
     padding: 20px 16px 60px;
-    color: #2c2c2a;
+    color: #111827;
   }
   .wrap { max-width: 640px; margin: 0 auto; }
   h1 {
@@ -22,7 +25,7 @@
   }
   .sub {
     text-align: center;
-    color: #5f5e5a;
+    color: #6b7280;
     font-size: 13px;
     margin-bottom: 18px;
     padding: 0 8px;
@@ -31,7 +34,7 @@
   input[type="text"] {
     width: 100%;
     height: 50px;
-    border: 1px solid #d3d1c7;
+    border: 1px solid #e5e7eb;
     border-radius: 10px;
     padding: 0 16px;
     font-size: 16px;
@@ -39,7 +42,7 @@
   }
   input[type="text"]:focus {
     outline: none;
-    border-color: #888780;
+    border-color: #6b7280;
   }
   .controls {
     display: flex;
@@ -51,21 +54,21 @@
   }
   .meta {
     font-size: 13px;
-    color: #888780;
+    color: #6b7280;
   }
   select {
     height: 38px;
-    border: 1px solid #d3d1c7;
+    border: 1px solid #e5e7eb;
     border-radius: 8px;
     background: #fff;
     font-size: 13px;
     padding: 0 10px;
-    color: #2c2c2a;
+    color: #111827;
   }
-  select:focus { outline: none; border-color: #888780; }
+  select:focus { outline: none; border-color: #6b7280; }
   .card {
     background: #fff;
-    border: 1px solid #e5e3da;
+    border: 1px solid #e5e7eb;
     border-radius: 12px;
     padding: 14px 16px;
     margin-bottom: 10px;
@@ -84,12 +87,12 @@
   }
   .card-brend {
     font-size: 12px;
-    color: #888780;
+    color: #6b7280;
     margin-top: 2px;
   }
   .card-count {
     font-size: 12px;
-    color: #888780;
+    color: #6b7280;
     white-space: nowrap;
     text-align: right;
     flex-shrink: 0;
@@ -104,27 +107,30 @@
   }
   .row.best .store { font-weight: 500; }
   .row.best .price { font-weight: 500; color: #185fa5; }
-  .row .store { color: #444441; }
-  .row.best .store { color: #2c2c2a; }
+  .row .store { color: #374151; }
+  .row.best .store { color: #111827; }
   .badge-best {
-    font-size: 10px;
-    font-weight: 500;
-    background: #e6f1fb;
-    color: #0c447c;
-    padding: 1px 7px;
-    border-radius: 5px;
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
     margin-left: 8px;
     vertical-align: middle;
+  }
+  .price {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-variant-numeric: tabular-nums;
   }
   .usteda-line {
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px solid #eeece3;
+    border-top: 1px solid #e5e7eb;
     font-size: 13px;
-    color: #444441;
+    color: #374151;
   }
   .usteda-line strong {
-    color: #2c2c2a;
+    color: #111827;
   }
   .more-toggle {
     font-size: 13px;
@@ -138,7 +144,7 @@
   }
   .empty {
     text-align: center;
-    color: #888780;
+    color: #6b7280;
     padding: 40px 20px;
     font-size: 14px;
   }
