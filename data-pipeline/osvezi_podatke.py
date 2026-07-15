@@ -268,6 +268,7 @@ def main():
 
     po_barkodu = defaultdict(dict)
     statusi = []
+    lanci_datumi = {}
 
     for ime, slug in LANCI.items():
         try:
@@ -306,6 +307,7 @@ def main():
                 f"[OK] {ime}: {len(redovi)} zapisa, datum {globalni_max.date()} "
                 f"(od {len(urls)} resursa)"
             )
+            lanci_datumi[ime] = globalni_max.strftime("%d.%m.%Y.")
         except Exception as e:
             statusi.append(f"[GRESKA] {ime}: {e}")
             log(f"[{ime}] GRESKA: {e}")
@@ -336,6 +338,7 @@ def main():
     danas = datetime.now().strftime("%d.%m.%Y")
     final = template.replace("__DATA_PLACEHOLDER__", data_json)
     final = final.replace("__DATUM_AZURIRANJA__", danas)
+    final = final.replace("__LANCI_DATUMI__", json.dumps(lanci_datumi, ensure_ascii=False))
 
     with open(izlaz_path, "w", encoding="utf-8") as f:
         f.write(final)
