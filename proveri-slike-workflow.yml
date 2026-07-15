@@ -1,0 +1,31 @@
+name: Proveri pokrivenost slika (Open Food Facts)
+
+# Rucno pokretanje - ides na Actions tab na GitHub-u i klikneš "Run workflow"
+on:
+  workflow_dispatch: {}
+
+jobs:
+  proveri-slike:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preuzmi kod iz repo-a
+        uses: actions/checkout@v4
+
+      - name: Podesi Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instaliraj zavisnosti
+        run: pip install requests
+
+      - name: Pokreni proveru slika
+        run: |
+          python data-pipeline/proveri_slike.py data-pipeline/test-barkodovi.csv --izlaz rezultati_slike.csv
+
+      - name: Sacuvaj rezultate kao artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rezultati-slike
+          path: rezultati_slike.csv
+          retention-days: 30
