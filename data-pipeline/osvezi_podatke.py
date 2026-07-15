@@ -86,8 +86,13 @@ def log(msg):
     print(msg, flush=True)
 
 
-def resolve_csv_url(slug):
-    """Pita udata API za trenutni link najveceg CSV resursa (glavni fajl)."""
+def resolve_csv_urls(slug):
+    """Pita udata API i vraca linkove SVIH CSV resursa dataseta.
+
+    Neki trgovci imaju vise resursa (npr. stara kumulativna istorija +
+    svezi nedeljni fajl, ili poseban sifarnik). Obradjujemo sve, a
+    resurse bez kljucnih kolona parser sam preskace.
+    """
     resp = requests.get(API_URL.format(slug=slug), headers={"User-Agent": USER_AGENT}, timeout=30)
     resp.raise_for_status()
     data = resp.json()
@@ -97,9 +102,9 @@ def resolve_csv_url(slug):
     ]
     if not csv_resursi:
         raise RuntimeError(f"Nema CSV resursa za slug {slug}")
+    # veci prvo — cesto je glavni; ali obradjujemo sve
     csv_resursi.sort(key=lambda r: r.get("filesize") or 0, reverse=True)
-    glavni = csv_resursi[0]
-    return glavni.get("latest") or glavni["url"]
+    return [r.get("latest") or r["url"] for r in csv_resursi]
 
 
 def detektuj_encoding(prvi_bajtovi):
@@ -266,8 +271,27 @@ def main():
 
     for ime, slug in LANCI.items():
         try:
-            url = resolve_csv_url(slug)
-            redovi, max_datum = preuzmi_i_parsiraj(ime, url)
+            urls = resolve_csv_urls(slug)
+            rezultati = []  # (redovi, max_datum) po resursu
+            for i, url in enumerate(urls, 1):
+                try:
+                    redovi, max_datum = preuzmi_i_parsiraj(f"{ime} #{i}", url)
+                    if redovi and max_datum:
+                        rezultati.append((redovi, max_datum))
+                except Exception as e:
+                    log(f"[{ime} #{i}] Preskacem resurs: {e}")
+
+            if not rezultati:
+                raise RuntimeError("nijedan resurs nije dao upotrebljive podatke")
+
+            # zadrzi podatke iz resursa sa globalno najnovijim datumom
+            # (ako vise resursa deli isti najnoviji datum, spajamo ih)
+            globalni_max = max(m for _, m in rezultati)
+            redovi = []
+            for r, m in rezultati:
+                if m == globalni_max:
+                    redovi.extend(r)
+
             for z in redovi:
                 bk = z["barkod"]
                 if ime not in po_barkodu[bk] or z["cena"] < po_barkodu[bk][ime]:
@@ -278,7 +302,10 @@ def main():
                     po_barkodu[bk]["_ikona"] = ikona_za(z["kat"])
                 elif not po_barkodu[bk]["_brend"] and z["brend"]:
                     po_barkodu[bk]["_brend"] = z["brend"]
-            statusi.append(f"[OK] {ime}: {len(redovi)} zapisa, datum {max_datum.date()}")
+            statusi.append(
+                f"[OK] {ime}: {len(redovi)} zapisa, datum {globalni_max.date()} "
+                f"(od {len(urls)} resursa)"
+            )
         except Exception as e:
             statusi.append(f"[GRESKA] {ime}: {e}")
             log(f"[{ime}] GRESKA: {e}")
