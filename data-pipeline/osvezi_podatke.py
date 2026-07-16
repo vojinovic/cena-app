@@ -185,7 +185,34 @@ def cist_brend(b):
     return "" if b.lower() in PLACEHOLDER_BRENDOVI else b
 
 
-def ikona_za(kat):
+def ikona_za(kat, naziv=""):
+    """Ikona po nazivu proizvoda (preciznije), pa po kategoriji (fallback).
+
+    Razlog: kategorije su preskiroke — npr. 'Bezalkoholna pica, kafa, caj'
+    pokriva i kiselu vodu i kafu, pa je voda dobijala solju kafe.
+    """
+    n = (naziv or "").lower()
+    # redosled bitan: specificnije prvo
+    PO_NAZIVU = [
+        (("voda ", " voda", "voda,"), "💧"),
+        (("sok ", " sok", "nektar", "juice"), "🧃"),
+        (("pivo",), "🍺"),
+        (("vino", "vinjak"), "🍷"),
+        (("kafa", "espresso", "cappuc", "kapuc"), "☕"),
+        (("caj ", " caj", "čaj"), "🫖"),
+        (("energet",), "⚡"),
+        (("mleko", "jogurt", "kefir", "pavlaka", "kiselo ml"), "🥛"),
+        (("sir ", " sir", "kackavalj", "kačkavalj", "gauda", "trapist"), "🧀"),
+        (("jaja", "jaje"), "🥚"),
+        (("hleb", "pecivo", "kifla", "lepinja", "tost "), "🍞"),
+        (("cokolad", "čokolad", "bombon", "keks", "napolitank", "vafl"), "🍫"),
+        (("cips", "čips", "flips", "smoki", "stapici", "štapići", "krekeri", "grickalice"), "🥨"),
+        (("sladoled",), "🍦"),
+    ]
+    for kljucevi, ik in PO_NAZIVU:
+        if any(k in n for k in kljucevi):
+            return ik
+
     k = (kat or "").strip().lower().replace(",", ", ").replace("  ", " ")
     return IKONE.get(k, "🛒")
 
@@ -402,14 +429,14 @@ def main():
                 if "_naziv" not in po_barkodu[bk]:
                     po_barkodu[bk]["_naziv"] = z["naziv"]
                     po_barkodu[bk]["_brend"] = z["brend"]
-                    po_barkodu[bk]["_ikona"] = ikona_za(z["kat"])
+                    po_barkodu[bk]["_ikona"] = ikona_za(z["kat"], z["naziv"])
                 else:
                     # dopuni bogatije podatke (Maxi direktni izvor nema
                     # brend/kategoriju, pa ih preuzimamo od portal-izvora)
                     if not po_barkodu[bk]["_brend"] and z["brend"]:
                         po_barkodu[bk]["_brend"] = z["brend"]
                     if po_barkodu[bk].get("_ikona", "🛒") == "🛒" and z["kat"]:
-                        po_barkodu[bk]["_ikona"] = ikona_za(z["kat"])
+                        po_barkodu[bk]["_ikona"] = ikona_za(z["kat"], z["naziv"])
             statusi.append(
                 f"[OK] {ime}: {len(redovi)} zapisa, datum {globalni_max.date()} "
                 f"(od {len(urls)} resursa)"
