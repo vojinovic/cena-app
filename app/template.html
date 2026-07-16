@@ -161,6 +161,20 @@
     margin: 10px 0 14px;
     flex-wrap: wrap;
   }
+  .controls.hidden { display: none; }
+  .demo-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--siva);
+    margin: 22px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .demo-label::after { content: ''; flex: 1; height: 1px; background: var(--ivica); }
   .meta { font-size: 13px; color: var(--siva); }
   select {
     height: 38px;
@@ -304,7 +318,7 @@
     margin-bottom: 12px;
     text-align: center;
   }
-  .lanci-svezina .staro { color: var(--staro); }
+  .lanci-svezina .staro { color: #a8927a; margin-top: 2px; }
   .footer-note {
     text-align: center;
     font-size: 12px;
@@ -401,17 +415,21 @@ document.getElementById('chips').innerHTML = PREDLOZI.map(p =>
   const el = document.getElementById('lanci-svezina');
   if (!el || !LANCI_DATUMI || Object.keys(LANCI_DATUMI).length === 0) return;
   const danas = new Date();
-  const delovi = Object.entries(LANCI_DATUMI).map(([lanac, d]) => {
+  const sveze = [], staro = [];
+  Object.entries(LANCI_DATUMI).forEach(([lanac, d]) => {
     const m = d.match(/(\d{2})\.(\d{2})\.(\d{4})/);
-    let staro = false;
+    let jeStaro = false;
     if (m) {
       const datum = new Date(+m[3], +m[2] - 1, +m[1]);
-      staro = (danas - datum) / 86400000 > 30;
+      jeStaro = (danas - datum) / 86400000 > 30;
     }
-    const cls = staro ? ' class="staro"' : '';
-    return '<span' + cls + '>' + lanac + ' ' + d + '</span>';
+    const kratko = m ? (m[1] + '.' + m[2] + '.') : d;
+    (jeStaro ? staro : sveze).push(lanac + ' ' + kratko);
   });
-  el.innerHTML = 'Cene važe od: ' + delovi.join(' · ');
+  let html = '';
+  if (sveze.length) html += '<div>Sveže cene: ' + sveze.join(' · ') + '</div>';
+  if (staro.length) html += '<div class="staro">Čekamo nove cenovnike (poslednji dostavljeni): ' + staro.join(' · ') + '</div>';
+  el.innerHTML = html;
 })();
 
 const results = document.getElementById('results');
@@ -442,12 +460,33 @@ function napraviRed(c, i) {
   return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
 }
 
+function napraviKarticu(p, idx, saTogglom) {
+  const [naziv, brend, cene, ikona] = p;
+  const pct = ustedaPct(cene);
+  const prikazano = cene.slice(0, 4);
+  const ostatak = cene.length - prikazano.length;
+  const rowsHtml = prikazano.map(napraviRed).join('');
+  const iznosUstede = cene[cene.length - 1][1] - cene[0][1];
+
+  return '<div class="card">' +
+    '<div class="card-head">' +
+      '<div class="card-title-wrap"><span class="cat-icon">' + (ikona || '🛒') + '</span><div><div class="card-title">' + naziv + '</div>' + (brend ? '<div class="card-brend">' + brend + '</div>' : '') + '</div></div>' +
+      '<div class="card-count">' + cene.length + ' prod.</div>' +
+    '</div>' +
+    '<div class="rows" id="rows-' + idx + '">' + rowsHtml + '</div>' +
+    (saTogglom && ostatak > 0 ? '<div class="more-toggle" data-idx="' + idx + '" data-open="0">Prikaži još ' + ostatak + '</div>' : '') +
+    (iznosUstede > 0 ? '<div class="usteda-line"><span>Kupi u <strong>' + cene[0][0] + '</strong></span><span class="usteda-iznos">−' + formatCena(iznosUstede) + ' RSD (' + pct + '%)</span></div>' : '') +
+  '</div>';
+}
+
 function render() {
   const q = input.value.trim().toLowerCase();
   const sort = sortSelect.value;
+  const controlsEl = document.querySelector('.controls');
 
   clearBtn.classList.toggle('visible', q.length > 0);
   chipsEl.style.display = q.length > 0 ? 'none' : 'flex';
+  controlsEl.classList.toggle('hidden', q.length === 0);
 
   let matches = q.length > 0
     ? DATA.filter(p => p[0].toLowerCase().includes(q) || p[1].toLowerCase().includes(q))
@@ -464,7 +503,13 @@ function render() {
 
   if (q.length === 0) {
     meta.textContent = '';
-    results.innerHTML = '<div class="empty">Ukucaj proizvod iznad ili izaberi predlog ⬆</div>';
+    // demo: 3 stvarna proizvoda sa najvise prodavnica, da odmah pokazu
+    // sta sajt radi — bez toggla, cisto kao izlog
+    const demo = DATA.slice(0, 3).map((p, i) => napraviKarticu(p, 'demo-' + i, false)).join('');
+    results.innerHTML =
+      '<div class="demo-label">Danas na primer</div>' + demo +
+      '<div class="empty">Ukucaj proizvod u pretragu za pun izbor — ' +
+      BROJ_PROIZVODA.toLocaleString('sr-RS') + ' proizvoda te čeka.</div>';
     return;
   }
 
@@ -475,24 +520,7 @@ function render() {
     return;
   }
 
-  results.innerHTML = matches.map((p, idx) => {
-    const [naziv, brend, cene, ikona] = p;
-    const pct = ustedaPct(cene);
-    const prikazano = cene.slice(0, 4);
-    const ostatak = cene.length - prikazano.length;
-    const rowsHtml = prikazano.map(napraviRed).join('');
-    const iznosUstede = cene[cene.length - 1][1] - cene[0][1];
-
-    return '<div class="card">' +
-      '<div class="card-head">' +
-        '<div class="card-title-wrap"><span class="cat-icon">' + (ikona || '🛒') + '</span><div><div class="card-title">' + naziv + '</div>' + (brend ? '<div class="card-brend">' + brend + '</div>' : '') + '</div></div>' +
-        '<div class="card-count">' + cene.length + ' prod.</div>' +
-      '</div>' +
-      '<div class="rows" id="rows-' + idx + '">' + rowsHtml + '</div>' +
-      (ostatak > 0 ? '<div class="more-toggle" data-idx="' + idx + '" data-open="0">Prikaži još ' + ostatak + '</div>' : '') +
-      (iznosUstede > 0 ? '<div class="usteda-line"><span>Kupi u <strong>' + cene[0][0] + '</strong></span><span class="usteda-iznos">−' + formatCena(iznosUstede) + ' RSD (' + pct + '%)</span></div>' : '') +
-    '</div>';
-  }).join('');
+  results.innerHTML = matches.map((p, idx) => napraviKarticu(p, idx, true)).join('');
 
   results.querySelectorAll('.more-toggle').forEach(el => {
     el.addEventListener('click', () => {
