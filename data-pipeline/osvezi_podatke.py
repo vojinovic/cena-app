@@ -53,6 +53,14 @@ MAXI_URL_TEMPLATE = (
     "{dd}-{mm}-{yyyy}/" + MAXI_STORE + "_{yyyy}{mm}{dd}.csv"
 )
 
+# DIS: javni JSON API njihovog sajta (dis.rs/artikli ga koristi).
+# Daje svez katalog sa cenama, ALI BEZ BARKODA - samo internu sifru.
+# Zato pravimo most naziv->barkod iz DIS CSV-a sa portala (koji ima
+# barkod ali su cene stare), vidi napravi_most_naziv_barkod().
+DIS_API_URL = "https://www.dis.rs/api/Dis/Articles"
+DIS_PER_PAGE = 200
+DIS_MAX_STRANA = 60          # zastita od beskonacne petlje
+
 # 10 velikih lanaca: prikazno ime -> slug na data.gov.rs
 LANCI = {
     "Lidl":            "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-13",
@@ -282,6 +290,92 @@ def preuzmi_maxi_direktno():
     raise RuntimeError("Maxi direktni cenovnik nedostupan za poslednjih 7 dana")
 
 
+def normalizuj_naziv(naziv):
+    """Svodi naziv proizvoda na uporedivi oblik.
+
+    'Dobro mleko UHT 2,8% m.m. 1 l' i 'Dobro mleko UHT 2,8% 1l'
+    treba da daju isti kljuc.
+    """
+    n = (naziv or "").lower().strip()
+    for a, b in (("\u010d","c"),("\u0107","c"),("\u0161","s"),("\u017e","z"),("\u0111","dj")):
+        n = n.replace(a, b)
+    n = n.replace(",", ".")
+    n = re.sub(r"\bm\s*\.?\s*m\s*\.?", " ", n)
+    n = re.sub(r"(\d)\s+(l|ml|g|kg|kom|pak)\b", r"\1\2", n)
+    n = re.sub(r"\b(kom|kompak|pak|komad|art|vp)\b", " ", n)
+    n = re.sub(r"[^a-z0-9%.]+", " ", n)
+    reci = [r for r in n.split() if r not in (".", "")]
+    return " ".join(sorted(reci))
+
+
+def preuzmi_dis_api():
+    """Povlaci ceo DIS katalog sa njihovog javnog API-ja."""
+    svi = []
+    ukupno = None
+    for strana in range(1, DIS_MAX_STRANA + 1):
+        try:
+            resp = requests.get(
+                DIS_API_URL,
+                params={"page": strana, "perPage": DIS_PER_PAGE},
+                headers={"User-Agent": USER_AGENT},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+        except (requests.exceptions.RequestException, ValueError) as e:
+            log(f"[Dis API] strana {strana}: {e}")
+            break
+
+        if ukupno is None:
+            ukupno = payload.get("totalCount")
+            log(f"[Dis API] totalCount = {ukupno}")
+
+        stavke = payload.get("data") or []
+        if not stavke:
+            break
+
+        for a in stavke:
+            redovna = a.get("price") or 0
+            akcijska = a.get("discountedPrice") or 0
+            cena = akcijska if akcijska > 0 else redovna
+            if cena <= 0:
+                continue
+            svi.append({
+                "sifra": (a.get("code") or "").strip(),
+                "naziv": (a.get("name") or "").strip(),
+                "cena": float(cena),
+                "kat": (a.get("categoryName") or "").strip(),
+            })
+
+        if ukupno and len(svi) >= ukupno:
+            break
+
+    log(f"[Dis API] preuzeto {len(svi)} artikala sa cenom")
+    return svi
+
+
+def napravi_most_naziv_barkod(csv_redovi):
+    """Iz DIS CSV redova pravi mapu normalizovan_naziv -> barkod."""
+    kandidati = defaultdict(set)
+    detalji = {}
+    for z in csv_redovi:
+        kljuc = normalizuj_naziv(z["naziv"])
+        if not kljuc:
+            continue
+        kandidati[kljuc].add(z["barkod"])
+        detalji.setdefault(kljuc, z)
+
+    most = {}
+    dvosmisleni = 0
+    for kljuc, barkodovi in kandidati.items():
+        if len(barkodovi) == 1:
+            most[kljuc] = (next(iter(barkodovi)), detalji[kljuc])
+        else:
+            dvosmisleni += 1
+    log(f"[Dis most] {len(most)} jednoznacnih naziva, {dvosmisleni} dvosmislenih preskoceno")
+    return most
+
+
 def preuzmi_i_parsiraj(ime_lanca, url):
     """
     Skida ceo CSV (strim na disk), parsira red po red, i vraca listu
@@ -378,6 +472,7 @@ def main():
     po_barkodu = defaultdict(dict)
     statusi = []
     lanci_datumi = {}
+    dis_csv_redovi = []      # cuvamo za naziv->barkod most
 
     # --- Direktni izvori (sajtovi trgovaca) ---
     try:
@@ -422,6 +517,10 @@ def main():
                 if m == globalni_max:
                     redovi.extend(r)
 
+            # DIS CSV cuvamo posebno - iz njega pravimo naziv->barkod most
+            if ime == "Dis":
+                dis_csv_redovi = list(redovi)
+
             for z in redovi:
                 bk = z["barkod"]
                 if ime not in po_barkodu[bk] or z["cena"] < po_barkodu[bk][ime]:
@@ -445,6 +544,46 @@ def main():
         except Exception as e:
             statusi.append(f"[GRESKA] {ime}: {e}")
             log(f"[{ime}] GRESKA: {e}")
+
+    # --- DIS: sveze cene sa API-ja + barkod preko mosta iz CSV-a ---
+    if dis_csv_redovi:
+        try:
+            most = napravi_most_naziv_barkod(dis_csv_redovi)
+            dis_api = preuzmi_dis_api()
+
+            pogodaka = 0
+            promasaji_primeri = []
+            for a in dis_api:
+                kljuc = normalizuj_naziv(a["naziv"])
+                nadjeno = most.get(kljuc)
+                if not nadjeno:
+                    if len(promasaji_primeri) < 8:
+                        promasaji_primeri.append(a["naziv"])
+                    continue
+                bk, csv_z = nadjeno
+                pogodaka += 1
+                po_barkodu[bk]["Dis"] = a["cena"]
+                if "_naziv" not in po_barkodu[bk]:
+                    po_barkodu[bk]["_naziv"] = a["naziv"]
+                    po_barkodu[bk]["_brend"] = csv_z.get("brend", "")
+                    po_barkodu[bk]["_ikona"] = ikona_za(a["kat"], a["naziv"])
+
+            pct = (pogodaka / len(dis_api) * 100) if dis_api else 0
+            log(f"[Dis most] POKLAPANJE: {pogodaka}/{len(dis_api)} ({pct:.1f}%)")
+            if promasaji_primeri:
+                log("[Dis most] primeri promasaja: " + " | ".join(promasaji_primeri))
+
+            if pogodaka > 0:
+                statusi.append(
+                    f"[OK] Dis (svez API + most): {pogodaka} artikala dobilo svezu cenu "
+                    f"({pct:.0f}% poklapanja od {len(dis_api)})"
+                )
+                lanci_datumi["Dis"] = datetime.now().strftime("%d.%m.%Y.")
+            else:
+                statusi.append("[GRESKA] Dis API: nijedan naziv se nije poklopio sa CSV-om")
+        except Exception as e:
+            statusi.append(f"[GRESKA] Dis (API/most): {e}")
+            log(f"[Dis API] GRESKA: {e}")
 
     proizvodi = []
     for bk, podaci in po_barkodu.items():
