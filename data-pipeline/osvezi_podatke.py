@@ -61,6 +61,12 @@ DIS_API_URL = "https://www.dis.rs/api/Dis/Articles"
 DIS_PER_PAGE = 200
 DIS_MAX_STRANA = 60          # zastita od beskonacne petlje
 
+# Univerexport: JSON API sa "Jedinicna cena artikala" stranice.
+# Daje cene, ali BEZ barkoda i BEZ sifre - samo naziv skracen na 20
+# znakova. Zato most ide prefiks-poredjenjem sa punim nazivima iz CSV-a.
+UNIVER_API_URL = "https://univerexport.rs/api/fetchArtikliForObjekat"
+UNIVER_OBJEKAT = "MP004"        # Resavska 4, Novi Sad
+
 # 10 velikih lanaca: prikazno ime -> slug na data.gov.rs
 LANCI = {
     "Lidl":            "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-13",
@@ -378,6 +384,75 @@ def napravi_most_naziv_barkod(csv_redovi):
     return most
 
 
+KOLICINA_RE = re.compile(r"^\d+[.,]?\d*(l|ml|g|kg|kom)$")
+
+
+def normalizuj_tokene(naziv):
+    """'BRAS PS T500 SENT1KG' -> bras ps t 500 sent 1kg"""
+    n = (naziv or "").lower().strip()
+    for a, b in (("\u010d","c"),("\u0107","c"),("\u0161","s"),("\u017e","z"),("\u0111","dj")):
+        n = n.replace(a, b)
+    n = n.replace(",", ".")
+    n = re.sub(r"\bm\s*\.?\s*m\s*\.?", " ", n)
+    n = re.sub(r"(?<!\d)\.|\.(?!\d)", " ", n)
+    n = re.sub(r"(\d)\s+(l|ml|g|kg)\b", r"\1\2", n)
+    n = re.sub(r"[^a-z0-9%.]+", " ", n)
+    n = re.sub(r"(?<=[a-z])(?=\d)", " ", n)
+    return [t for t in n.split() if t != "."]
+
+
+def kolicina_iz(tokeni):
+    for t in tokeni:
+        if KOLICINA_RE.match(t):
+            return t
+    return None
+
+
+def kljuc_grupe(tokeni):
+    if not tokeni:
+        return None
+    return (tokeni[0][:4], kolicina_iz(tokeni))
+
+
+def prefiks_slaganje(kratki, puni):
+    preostali = list(puni)
+    for k in kratki:
+        nasao = False
+        for i, pp in enumerate(preostali):
+            if pp.startswith(k) or k.startswith(pp):
+                preostali.pop(i)
+                nasao = True
+                break
+        if not nasao:
+            return False
+    return True
+
+
+def preuzmi_univer_api():
+    resp = requests.get(UNIVER_API_URL, params={"sif_site": UNIVER_OBJEKAT},
+                        headers={"User-Agent": USER_AGENT}, timeout=90)
+    resp.raise_for_status()
+    svi = []
+    for a in resp.json().get("data") or []:
+        cena = a.get("MALOPRODAJNA_CENA")
+        if not cena or float(cena) <= 0:
+            continue
+        svi.append({"naziv": (a.get("NAZIV_ARTIKLA") or "").strip(), "cena": float(cena)})
+    log(f"[Univer API] preuzeto {len(svi)} artikala (objekat {UNIVER_OBJEKAT})")
+    return svi
+
+
+def napravi_most_prefiks(csv_redovi):
+    most = defaultdict(list)
+    for z in csv_redovi:
+        tok = normalizuj_tokene(z["naziv"])
+        g = kljuc_grupe(tok)
+        if g:
+            most[g].append((tok, z["barkod"], z))
+    log(f"[Univer most] {len(most)} grupa iz CSV-a")
+    return most
+
+
 def preuzmi_i_parsiraj(ime_lanca, url):
     """
     Skida ceo CSV (strim na disk), parsira red po red, i vraca listu
@@ -475,6 +550,7 @@ def main():
     statusi = []
     lanci_datumi = {}
     dis_csv_redovi = []      # cuvamo za naziv->barkod most
+    univer_csv_redovi = []
 
     # --- Direktni izvori (sajtovi trgovaca) ---
     try:
@@ -522,6 +598,8 @@ def main():
             # DIS CSV cuvamo posebno - iz njega pravimo naziv->barkod most
             if ime == "Dis":
                 dis_csv_redovi = list(redovi)
+            if ime == "Univerexport":
+                univer_csv_redovi = list(redovi)
 
             for z in redovi:
                 bk = z["barkod"]
@@ -586,6 +664,42 @@ def main():
         except Exception as e:
             statusi.append(f"[GRESKA] Dis (API/most): {e}")
             log(f"[Dis API] GRESKA: {e}")
+
+    # --- Univerexport: svez API + barkod preko prefiks-mosta ---
+    if univer_csv_redovi:
+        try:
+            most = napravi_most_prefiks(univer_csv_redovi)
+            api = preuzmi_univer_api()
+            pogodaka, dvosmislenih = 0, 0
+            promasaji = []
+            for a in api:
+                tok = normalizuj_tokene(a["naziv"])
+                kandidati = most.get(kljuc_grupe(tok), [])
+                pogodci = [k for k in kandidati if prefiks_slaganje(tok, k[0])]
+                if len(pogodci) == 1:
+                    bk, csv_z = pogodci[0][1], pogodci[0][2]
+                    pogodaka += 1
+                    po_barkodu[bk]["Univerexport"] = a["cena"]
+                    if "_naziv" not in po_barkodu[bk]:
+                        po_barkodu[bk]["_naziv"] = csv_z["naziv"]
+                        po_barkodu[bk]["_brend"] = csv_z.get("brend", "")
+                        po_barkodu[bk]["_ikona"] = ikona_za(csv_z.get("kat", ""), csv_z["naziv"])
+                elif len(pogodci) > 1:
+                    dvosmislenih += 1
+                elif len(promasaji) < 8:
+                    promasaji.append(a["naziv"])
+            pct = (pogodaka / len(api) * 100) if api else 0
+            log(f"[Univer most] POKLAPANJE: {pogodaka}/{len(api)} ({pct:.1f}%), {dvosmislenih} dvosmislenih")
+            if promasaji:
+                log("[Univer most] primeri promasaja: " + " | ".join(promasaji))
+            if pogodaka > 0:
+                statusi.append(f"[OK] Univerexport (svez API + most): {pogodaka} artikala ({pct:.0f}% od {len(api)})")
+                lanci_datumi["Univerexport"] = datetime.now().strftime("%d.%m.%Y.")
+            else:
+                statusi.append("[GRESKA] Univerexport API: nijedan naziv se nije poklopio")
+        except Exception as e:
+            statusi.append(f"[GRESKA] Univerexport (API/most): {e}")
+            log(f"[Univer API] GRESKA: {e}")
 
     proizvodi = []
     for bk, podaci in po_barkodu.items():
