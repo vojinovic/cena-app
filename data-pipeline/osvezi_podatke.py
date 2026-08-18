@@ -373,6 +373,8 @@ def napravi_most_naziv_barkod(csv_redovi):
         else:
             dvosmisleni += 1
     log(f"[Dis most] {len(most)} jednoznacnih naziva, {dvosmisleni} dvosmislenih preskoceno")
+    for i, (k, v) in enumerate(list(most.items())[:6]):
+        log(f"[Dis most] CSV primer {i+1}: original='{v[1]['naziv']}' -> kljuc='{k}'")
     return most
 
 
