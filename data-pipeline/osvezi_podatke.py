@@ -354,27 +354,27 @@ def preuzmi_dis_api():
     return svi
 
 
-def napravi_most_naziv_barkod(csv_redovi):
-    """Iz DIS CSV redova pravi mapu normalizovan_naziv -> barkod."""
-    kandidati = defaultdict(set)
-    detalji = {}
-    for z in csv_redovi:
-        kljuc = normalizuj_naziv(z["naziv"])
-        if not kljuc:
-            continue
-        kandidati[kljuc].add(z["barkod"])
-        detalji.setdefault(kljuc, z)
+def izvuci_dis_sifru(naziv):
+    """DIS u CSV-u pise sifru artikla na pocetku naziva:
+    '000066 Paradajz cherry sljivar 500 g' -> '000066'
+    Ista sifra je u API polju 'code', pa preko nje spajamo izvore."""
+    m = re.match(r"^\s*(\d{4,8})\s+", naziv or "")
+    return m.group(1).lstrip("0") if m else None
 
+
+def napravi_most_naziv_barkod(csv_redovi):
+    """Mapa DIS_sifra -> (barkod, csv_red). Sifra je pouzdanija od naziva."""
     most = {}
-    dvosmisleni = 0
-    for kljuc, barkodovi in kandidati.items():
-        if len(barkodovi) == 1:
-            most[kljuc] = (next(iter(barkodovi)), detalji[kljuc])
-        else:
-            dvosmisleni += 1
-    log(f"[Dis most] {len(most)} jednoznacnih naziva, {dvosmisleni} dvosmislenih preskoceno")
-    for i, (k, v) in enumerate(list(most.items())[:6]):
-        log(f"[Dis most] CSV primer {i+1}: original='{v[1]['naziv']}' -> kljuc='{k}'")
+    bez_sifre = 0
+    for z in csv_redovi:
+        sifra = izvuci_dis_sifru(z["naziv"])
+        if not sifra:
+            bez_sifre += 1
+            continue
+        most.setdefault(sifra, (z["barkod"], z))
+    log(f"[Dis most] {len(most)} sifri iz CSV-a, {bez_sifre} redova bez sifre")
+    for i, (k, v) in enumerate(list(most.items())[:3]):
+        log(f"[Dis most] primer: sifra={k} barkod={v[0]} naziv='{v[1]['naziv'][:50]}'")
     return most
 
 
@@ -556,7 +556,7 @@ def main():
             pogodaka = 0
             promasaji_primeri = []
             for a in dis_api:
-                kljuc = normalizuj_naziv(a["naziv"])
+                kljuc = (a["sifra"] or "").lstrip("0")
                 nadjeno = most.get(kljuc)
                 if not nadjeno:
                     if len(promasaji_primeri) < 8:
