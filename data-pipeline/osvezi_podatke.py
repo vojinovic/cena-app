@@ -450,6 +450,8 @@ def napravi_most_prefiks(csv_redovi):
         if g:
             most[g].append((tok, z["barkod"], z))
     log(f"[Univer most] {len(most)} grupa iz CSV-a")
+    for i, (g, v) in enumerate(list(most.items())[:6]):
+        log(f"[Univer most] CSV primer {i+1}: grupa={g} naziv='{v[0][2]['naziv'][:55]}' tokeni={v[0][0][:8]}")
     return most
 
 
