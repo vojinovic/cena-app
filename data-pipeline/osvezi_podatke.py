@@ -886,6 +886,8 @@ def main():
                 if najbolji is not None:
                     bk = najbolji[1]
                     pogodaka += 1
+                    if pogodaka <= 15:
+                        log(f"[Lidl spoj] '{a['naziv'][:38]}' == '{' '.join(najbolji[0])[:38]}' (bk={bk})")
                     po_barkodu[bk]["Lidl"] = a["cena"]
                     if "_naziv" not in po_barkodu[bk]:
                         po_barkodu[bk]["_naziv"] = a["naziv"]
