@@ -466,6 +466,19 @@ def napravi_most_prefiks(csv_redovi):
     return most
 
 
+def skor_slaganja(a, b):
+    """Broj tokena koji se poklapaju (prefiksno). Sto vise, to bolje."""
+    skor = 0
+    preostali = list(b)
+    for t in a:
+        for i, p2 in enumerate(preostali):
+            if p2.startswith(t) or t.startswith(p2):
+                preostali.pop(i)
+                skor += 1
+                break
+    return skor
+
+
 def delimicno_slaganje(a, b, min_zajednickih=2):
     """Blazi uslov od prefiks_slaganje: dovoljno je da se poklopi
     bar N tokena (prefiksno). Koristi se kad poredimo nazive IZMEDJU
@@ -859,8 +872,19 @@ def main():
                                 _vidjeni.add(k[1])
                                 pogodci.append(k)
                 barkodovi = {k[1] for k in pogodci}
+                najbolji = None
                 if len(barkodovi) == 1:
-                    bk = pogodci[0][1]
+                    najbolji = pogodci[0]
+                elif len(barkodovi) > 1:
+                    # rangiraj po broju zajednickih tokena; uzmi prvog
+                    # samo ako je strogo bolji od drugog (bez nagadjanja)
+                    rangirani = sorted(pogodci, key=lambda k: -skor_slaganja(tok, k[0]))
+                    s1 = skor_slaganja(tok, rangirani[0][0])
+                    s2 = skor_slaganja(tok, rangirani[1][0]) if len(rangirani) > 1 else 0
+                    if s1 > s2:
+                        najbolji = rangirani[0]
+                if najbolji is not None:
+                    bk = najbolji[1]
                     pogodaka += 1
                     po_barkodu[bk]["Lidl"] = a["cena"]
                     if "_naziv" not in po_barkodu[bk]:
@@ -869,6 +893,9 @@ def main():
                         po_barkodu[bk]["_ikona"] = ikona_za("", a["naziv"])
                 elif len(barkodovi) > 1:
                     dvosmislenih += 1
+                    if len(promasaji) < 3:
+                        log(f"[Lidl neresen] '{a['naziv']}' -> " +
+                            " | ".join(" ".join(k[0])[:40] for k in pogodci[:3]))
                 elif len(promasaji) < 8:
                     promasaji.append(a["naziv"])
                     # detaljna dijagnostika: sta ima u istoj grupi?
