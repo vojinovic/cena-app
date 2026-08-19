@@ -654,6 +654,7 @@ def preuzmi_idea_api():
     po_bk = {}
     kategorije = preuzmi_idea_kategorije()
     for i, kat in enumerate(kategorije, 1):
+      try:
         strana = 1
         while strana <= 40:
             try:
@@ -666,9 +667,11 @@ def preuzmi_idea_api():
             except Exception:
                 break
             proizvodi = payload.get("products") or []
-            if not proizvodi:
+            if not isinstance(proizvodi, list) or not proizvodi:
                 break
             for pr in proizvodi:
+                if not isinstance(pr, dict):
+                    continue
                 bk = izaberi_barkod(pr.get("barcodes") or [])
                 if not bk:
                     continue
@@ -685,7 +688,9 @@ def preuzmi_idea_api():
             if strana >= (info.get("page_count") or 1):
                 break
             strana += 1
-        if i % 25 == 0:
+      except Exception as e:
+        log(f"[Idea API] kategorija {kat} preskocena: {e}")
+      if i % 25 == 0:
             log(f"[Idea API] {i}/{len(kategorije)} kategorija, {len(po_bk)} proizvoda")
     log(f"[Idea API] ukupno {len(po_bk)} proizvoda sa barkodom i cenom")
     return list(po_bk.values())
