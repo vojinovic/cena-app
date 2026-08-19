@@ -232,6 +232,20 @@
   }
   .row + .row { border-top: 1px solid #f3f2ee; }
   .row .store { color: #3d3e39; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .badge-akcija {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    background: #fde8e8;
+    color: #9b1c1c;
+    padding: 2px 6px 1px;
+    border-radius: 4px;
+    margin-left: 6px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
   .price {
     font-family: 'IBM Plex Mono', monospace;
     font-weight: 500;
@@ -457,7 +471,9 @@ function ustedaPct(cene) {
 function napraviRed(c, i) {
   const cls = i === 0 ? 'best' : '';
   const badge = i === 0 ? '<span class="badge-best">najjeftinije</span>' : '';
-  return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
+  // c[2] = oznaka akcije, ako je lanac prijavio snizenje
+  const akcija = c[2] ? '<span class="badge-akcija">' + c[2] + '</span>' : '';
+  return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + akcija + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
 }
 
 function napraviKarticu(p, idx, saTogglom) {

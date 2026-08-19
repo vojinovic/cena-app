@@ -292,6 +292,7 @@ def preuzmi_maxi_direktno():
                     continue
                 snizena = parsiraj_maxi_cenu(row.get(col_snizena)) if col_snizena else None
                 cena = snizena if (snizena and snizena > 0) else redovna
+                na_akciji = bool(snizena and snizena > 0 and snizena < redovna)
                 redovi.append({
                     "barkod": bk,
                     "naziv": (row.get(col_naziv) or "").strip(),
@@ -364,6 +365,7 @@ def preuzmi_dis_api():
                 "naziv": (a.get("name") or "").strip(),
                 "cena": float(cena),
                 "kat": (a.get("categoryName") or "").strip(),
+                "akcija": "akcija" if (redovna > 0 and akcijska > 0 and akcijska < redovna) else None,
             })
 
         if ukupno and len(svi) >= ukupno:
@@ -680,10 +682,19 @@ def preuzmi_idea_api():
                     continue
                 kats = pr.get("categories") or []
                 kat_ime = kats[0].get("name", "") if kats else ""
+                ponuda = pr.get("offer") or {}
+                akcija = None
+                if ponuda:
+                    kraj = (ponuda.get("end_on") or "").strip().rstrip(".")
+                    stara = ((ponuda.get("original_price") or {}).get("amount") or 0) / 100.0
+                    if kraj:
+                        akcija = f"do {kraj[:5]}"
+                    elif stara > iznos:
+                        akcija = "akcija"
                 if bk not in po_bk or iznos < po_bk[bk]["cena"]:
                     po_bk[bk] = {"barkod": bk, "naziv": (pr.get("name") or "").strip(),
                                  "brend": (pr.get("manufacturer") or "").strip(),
-                                 "kat": kat_ime, "cena": iznos}
+                                 "kat": kat_ime, "cena": iznos, "akcija": akcija}
             info = payload.get("_page") or {}
             if strana >= (info.get("page_count") or 1):
                 break
@@ -803,6 +814,8 @@ def main():
             bk = z["barkod"]
             if "Maxi" not in po_barkodu[bk] or z["cena"] < po_barkodu[bk]["Maxi"]:
                 po_barkodu[bk]["Maxi"] = z["cena"]
+                if z.get("akcija"):
+                    po_barkodu[bk]["_akcija_Maxi"] = z["akcija"]
             if "_naziv" not in po_barkodu[bk]:
                 po_barkodu[bk]["_naziv"] = z["naziv"]
                 po_barkodu[bk]["_brend"] = ""
@@ -889,6 +902,8 @@ def main():
                 bk, csv_z = nadjeno
                 pogodaka += 1
                 po_barkodu[bk]["Dis"] = a["cena"]
+                if a.get("akcija"):
+                    po_barkodu[bk]["_akcija_Dis"] = a["akcija"]
                 if "_naziv" not in po_barkodu[bk]:
                     po_barkodu[bk]["_naziv"] = a["naziv"]
                     po_barkodu[bk]["_brend"] = csv_z.get("brend", "")
@@ -1043,6 +1058,8 @@ def main():
             bk = z["barkod"]
             if "Idea" not in po_barkodu[bk] or z["cena"] < po_barkodu[bk]["Idea"]:
                 po_barkodu[bk]["Idea"] = z["cena"]
+                if z.get("akcija"):
+                    po_barkodu[bk]["_akcija_Idea"] = z["akcija"]
             if "_naziv" not in po_barkodu[bk]:
                 po_barkodu[bk]["_naziv"] = z["naziv"]
                 po_barkodu[bk]["_brend"] = z["brend"]
@@ -1058,7 +1075,12 @@ def main():
 
     proizvodi = []
     for bk, podaci in po_barkodu.items():
-        cene = [[t, c] for t, c in podaci.items() if not t.startswith("_")]
+        cene = []
+        for t, c in podaci.items():
+            if t.startswith("_"):
+                continue
+            ak = podaci.get("_akcija_" + t)
+            cene.append([t, c, ak] if ak else [t, c])
         if len(cene) < 2:
             continue
         cene.sort(key=lambda x: x[1])
