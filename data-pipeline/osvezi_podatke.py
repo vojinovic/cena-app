@@ -1073,6 +1073,25 @@ def main():
         statusi.append(f"[GRESKA] Idea (API): {e}")
         log(f"[Idea API] GRESKA: {e}")
 
+    # --- DIJAGNOSTIKA PREKLAPANJA: koliko lanaca deli iste barkodove ---
+    from collections import Counter
+    po_lancu = Counter()
+    parovi = Counter()
+    for _bk, _pod in po_barkodu.items():
+        lanci = sorted(t for t in _pod if not t.startswith("_"))
+        for l in lanci:
+            po_lancu[l] += 1
+        for a_ in lanci:
+            for b_ in lanci:
+                if a_ < b_:
+                    parovi[(a_, b_)] += 1
+    log("[Dijag] barkodova po lancu: " + ", ".join(f"{k}={v}" for k, v in po_lancu.most_common()))
+    log("[Dijag] najcesci parovi lanaca:")
+    for (a_, b_), n in parovi.most_common(12):
+        log(f"[Dijag]   {a_} + {b_}: {n}")
+    samo_jedan = sum(1 for _p in po_barkodu.values() if len([t for t in _p if not t.startswith("_")]) == 1)
+    log(f"[Dijag] barkodova samo kod 1 lanca: {samo_jedan} od {len(po_barkodu)}")
+
     proizvodi = []
     for bk, podaci in po_barkodu.items():
         cene = []
