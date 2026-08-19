@@ -232,6 +232,13 @@
   }
   .row + .row { border-top: 1px solid #f3f2ee; }
   .row .store { color: #3d3e39; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .row.priblizno .store, .row.priblizno .price { color: #8a8a82; }
+  .badge-priblizno {
+    font-size: 11px;
+    color: #a3a29b;
+    margin-left: 6px;
+    cursor: help;
+  }
   .badge-akcija {
     font-family: 'Space Grotesk', sans-serif;
     font-size: 9px;
@@ -407,6 +414,7 @@
     </div>
     <div class="lanci-svezina" id="lanci-svezina"></div>
     <div class="footer-note">
+      Oznaka ~ znaci da je cena povezana po nazivu, ne po barkodu.<br>
       Podaci: <a href="https://data.gov.rs" target="_blank">data.gov.rs</a> + sajtovi trgovaca · Poslednja provera: __DATUM_AZURIRANJA__ · Rani prototip u razvoju
     </div>
   </footer>
@@ -463,17 +471,22 @@ function formatCena(c) {
 }
 
 function ustedaPct(cene) {
-  const best = cene[0][1];
-  const worst = cene[cene.length - 1][1];
+  const p = cene.filter(c => c.length <= 3);
+  if (p.length < 2) return 0;
+  const best = p[0][1];
+  const worst = p[p.length - 1][1];
   return worst > 0 ? Math.round((worst - best) / worst * 100) : 0;
 }
 
 function napraviRed(c, i) {
-  const cls = i === 0 ? 'best' : '';
-  const badge = i === 0 ? '<span class="badge-best">najjeftinije</span>' : '';
-  // c[2] = oznaka akcije, ako je lanac prijavio snizenje
+  // c[3] = cena spojena po nazivu, ne po barkodu: prikazujemo je
+  // tise i nikad je ne proglasavamo najjeftinijom
+  const priblizno = c.length > 3;
+  const cls = (i === 0 && !priblizno ? 'best ' : '') + (priblizno ? 'priblizno' : '');
+  const badge = (i === 0 && !priblizno) ? '<span class="badge-best">najjeftinije</span>' : '';
   const akcija = c[2] ? '<span class="badge-akcija">' + c[2] + '</span>' : '';
-  return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + akcija + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
+  const pribl = priblizno ? '<span class="badge-priblizno" title="Cena je povezana po nazivu proizvoda, ne po barkodu">~</span>' : '';
+  return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + akcija + pribl + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
 }
 
 function napraviKarticu(p, idx, saTogglom) {
@@ -482,7 +495,10 @@ function napraviKarticu(p, idx, saTogglom) {
   const prikazano = cene.slice(0, 4);
   const ostatak = cene.length - prikazano.length;
   const rowsHtml = prikazano.map(napraviRed).join('');
-  const iznosUstede = cene[cene.length - 1][1] - cene[0][1];
+  // usteda se racuna iskljucivo na pouzdanim cenama (bez "~")
+  const pouzdane = cene.filter(c => c.length <= 3);
+  const iznosUstede = pouzdane.length >= 2
+    ? pouzdane[pouzdane.length - 1][1] - pouzdane[0][1] : 0;
 
   return '<div class="card">' +
     '<div class="card-head">' +
@@ -491,7 +507,7 @@ function napraviKarticu(p, idx, saTogglom) {
     '</div>' +
     '<div class="rows" id="rows-' + idx + '">' + rowsHtml + '</div>' +
     (saTogglom && ostatak > 0 ? '<div class="more-toggle" data-idx="' + idx + '" data-open="0">Prikaži još ' + ostatak + '</div>' : '') +
-    (iznosUstede > 0 ? '<div class="usteda-line"><span>Kupi u <strong>' + cene[0][0] + '</strong></span><span class="usteda-iznos">−' + formatCena(iznosUstede) + ' RSD (' + pct + '%)</span></div>' : '') +
+    (iznosUstede > 0 ? '<div class="usteda-line"><span>Kupi u <strong>' + (pouzdane[0] || cene[0])[0] + '</strong></span><span class="usteda-iznos">−' + formatCena(iznosUstede) + ' RSD (' + pct + '%)</span></div>' : '') +
   '</div>';
 }
 

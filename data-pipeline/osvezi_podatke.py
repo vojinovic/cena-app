@@ -74,6 +74,20 @@ UNIVER_OBJEKAT = "MP004"        # Resavska 4, Novi Sad
 LIDL_API_URL = "https://www.lidl.rs/q/api/search"
 LIDL_FETCHSIZE = 100
 
+# ============================================================
+# PROVENANCE - kako je cena povezana sa proizvodom.
+# Nije "kvalitet podatka" nego NACIN spajanja, jer od toga
+# zavisi koliko smemo da verujemo da je to bas taj proizvod.
+#   EAN_DIRECT  - izvor sam daje barkod (nema nagadjanja)
+#   CODE_BRIDGE - most preko interne sifre artikla (jednoznacna)
+#   NAME_MATCH  - poklapanje po nazivu (heuristika, moze da promasi)
+# Pravilo: NAME_MATCH cena se prikazuje, ali NE MOZE biti
+# proglasena najjeftinijom niti ulaziti u racunicu ustede.
+# ============================================================
+EAN_DIRECT = "ean"
+CODE_BRIDGE = "code"
+NAME_MATCH = "name"
+
 # Idea (Mercator-S): webshop API online.idea.rs. Najbolji izvor do
 # sada - daje BARKODOVE, akcijske cene i cenu po jedinici mere, pa se
 # spaja direktno kao Maxi, bez ikakvog mosta.
@@ -814,6 +828,7 @@ def main():
             bk = z["barkod"]
             if "Maxi" not in po_barkodu[bk] or z["cena"] < po_barkodu[bk]["Maxi"]:
                 po_barkodu[bk]["Maxi"] = z["cena"]
+                po_barkodu[bk]["_prov_Maxi"] = EAN_DIRECT
                 if z.get("akcija"):
                     po_barkodu[bk]["_akcija_Maxi"] = z["akcija"]
             if "_naziv" not in po_barkodu[bk]:
@@ -864,6 +879,7 @@ def main():
                 bk = z["barkod"]
                 if ime not in po_barkodu[bk] or z["cena"] < po_barkodu[bk][ime]:
                     po_barkodu[bk][ime] = z["cena"]
+                    po_barkodu[bk]["_prov_" + ime] = EAN_DIRECT
                 if "_naziv" not in po_barkodu[bk]:
                     po_barkodu[bk]["_naziv"] = z["naziv"]
                     po_barkodu[bk]["_brend"] = z["brend"]
@@ -902,6 +918,7 @@ def main():
                 bk, csv_z = nadjeno
                 pogodaka += 1
                 po_barkodu[bk]["Dis"] = a["cena"]
+                po_barkodu[bk]["_prov_Dis"] = CODE_BRIDGE
                 if a.get("akcija"):
                     po_barkodu[bk]["_akcija_Dis"] = a["akcija"]
                 if "_naziv" not in po_barkodu[bk]:
@@ -942,6 +959,7 @@ def main():
                     bk, csv_z = pogodci[0][1], pogodci[0][2]
                     pogodaka += 1
                     po_barkodu[bk]["Univerexport"] = a["cena"]
+                    po_barkodu[bk]["_prov_Univerexport"] = NAME_MATCH
                     if "_naziv" not in po_barkodu[bk]:
                         po_barkodu[bk]["_naziv"] = csv_z["naziv"]
                         po_barkodu[bk]["_brend"] = csv_z.get("brend", "")
@@ -1020,6 +1038,8 @@ def main():
                     if pogodaka <= 15:
                         log(f"[Lidl spoj] '{a['naziv'][:38]}' == '{' '.join(najbolji[0])[:38]}' (bk={bk})")
                     po_barkodu[bk]["Lidl"] = a["cena"]
+                    po_barkodu[bk]["_prov_Lidl"] = NAME_MATCH
+                    po_barkodu[bk]["_skor_Lidl"] = skor_slaganja(tok, najbolji[0])
                     if "_naziv" not in po_barkodu[bk]:
                         po_barkodu[bk]["_naziv"] = a["naziv"]
                         po_barkodu[bk]["_brend"] = a["brend"]
@@ -1058,6 +1078,7 @@ def main():
             bk = z["barkod"]
             if "Idea" not in po_barkodu[bk] or z["cena"] < po_barkodu[bk]["Idea"]:
                 po_barkodu[bk]["Idea"] = z["cena"]
+                po_barkodu[bk]["_prov_Idea"] = EAN_DIRECT
                 if z.get("akcija"):
                     po_barkodu[bk]["_akcija_Idea"] = z["akcija"]
             if "_naziv" not in po_barkodu[bk]:
@@ -1092,20 +1113,52 @@ def main():
     samo_jedan = sum(1 for _p in po_barkodu.values() if len([t for t in _p if not t.startswith("_")]) == 1)
     log(f"[Dijag] barkodova samo kod 1 lanca: {samo_jedan} od {len(po_barkodu)}")
 
+    odbaceno_sumnjivih = [0]
     proizvodi = []
     for bk, podaci in po_barkodu.items():
-        cene = []
+        sirove = []
         for t, c in podaci.items():
             if t.startswith("_"):
                 continue
-            ak = podaci.get("_akcija_" + t)
-            cene.append([t, c, ak] if ak else [t, c])
+            sirove.append((t, c, podaci.get("_akcija_" + t),
+                           podaci.get("_prov_" + t, EAN_DIRECT),
+                           podaci.get("_skor_" + t)))
+
+        # Sumnjiv match: cena spojena po NAZIVU koja jako odudara od
+        # pouzdanih cena. Dva signala moraju da se poklope - odstupanje
+        # cene I slabo poklapanje naziva - da ne bacamo prave akcije.
+        pouzdane = [c for _t, c, _a, prov, _sk in sirove if prov != NAME_MATCH]
+        prag_dole = prag_gore = None
+        if len(pouzdane) >= 2:
+            ps = sorted(pouzdane)
+            sredina = ps[len(ps) // 2]
+            prag_dole, prag_gore = sredina / 2.5, sredina * 2.5
+
+        cene = []
+        for t, c, ak, prov, skor in sirove:
+            if prov == NAME_MATCH and prag_dole is not None:
+                odudara = c < prag_dole or c > prag_gore
+                slabo_ime = skor is not None and skor < 3
+                if odudara and slabo_ime:
+                    odbaceno_sumnjivih[0] += 1
+                    continue
+            red = [t, c]
+            if ak or prov == NAME_MATCH:
+                red.append(ak)
+                if prov == NAME_MATCH:
+                    red.append(1)
+            cene.append(red)
         if len(cene) < 2:
             continue
-        cene.sort(key=lambda x: x[1])
+        # Heuristicki match nikad ne "pobedjuje" - priblizne cene idu
+        # iza pouzdanih, pa oznaka "najjeftinije" pripada proverenoj.
+        cene.sort(key=lambda x: (len(x) > 3, x[1]))
         proizvodi.append([podaci["_naziv"], podaci["_brend"], cene, podaci.get("_ikona", "🛒")])
 
     proizvodi.sort(key=lambda x: -len(x[2]))
+    if odbaceno_sumnjivih[0]:
+        log(f"[Kontrola] odbaceno {odbaceno_sumnjivih[0]} sumnjivih cena "
+            f"(match po nazivu + odudara od ostalih)")
     log(f"\nUkupno uporedivih proizvoda: {len(proizvodi)}")
 
     if len(proizvodi) < 1000:
