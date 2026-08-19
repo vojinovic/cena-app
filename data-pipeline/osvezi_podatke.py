@@ -811,16 +811,18 @@ def main():
             # drugi izvor koristimo nazive SVIH ostalih lanaca -
             # brendirana roba (Ariel, Fairy...) se tako moze spojiti.
             most_svi_lanci = defaultdict(list)
-            vidjeni_bk = set()
+            grupe_po_svim_recima = True
             for _bk, _pod in po_barkodu.items():
                 _naz = _pod.get("_naziv")
-                if not _naz or _bk in vidjeni_bk:
+                if not _naz:
                     continue
-                vidjeni_bk.add(_bk)
                 _tok = normalizuj_tokene(_naz)
-                _g = kljuc_grupe(_tok)
-                if _g:
-                    most_svi_lanci[_g].append((_tok, _bk, _pod))
+                _kol = kolicina_iz(_tok)
+                if not _kol:
+                    continue
+                # indeksiraj pod svakom recju duzom od 3 slova
+                for _r in set(t[:4] for t in _tok if len(t) > 3 and not t[0].isdigit()):
+                    most_svi_lanci[(_r, _kol)].append((_tok, _bk, _pod))
             log(f"[Lidl most] {len(most_svi_lanci)} grupa iz ostalih lanaca")
             api = preuzmi_lidl_api()
             pogodaka, dvosmislenih = 0, 0
@@ -831,8 +833,15 @@ def main():
                 kandidati = most.get(g, [])
                 pogodci = [k for k in kandidati if prefiks_slaganje(tok, k[0])]
                 if not pogodci:
-                    kandidati = most_svi_lanci.get(g, [])
-                    pogodci = [k for k in kandidati if prefiks_slaganje(tok, k[0])]
+                    _kol = kolicina_iz(tok)
+                    _vidjeni = set()
+                    for _r in set(t[:4] for t in tok if len(t) > 3 and not t[0].isdigit()):
+                        for k in most_svi_lanci.get((_r, _kol), []):
+                            if k[1] in _vidjeni:
+                                continue
+                            if prefiks_slaganje(tok, k[0]) or prefiks_slaganje(k[0], tok):
+                                _vidjeni.add(k[1])
+                                pogodci.append(k)
                 barkodovi = {k[1] for k in pogodci}
                 if len(barkodovi) == 1:
                     bk = pogodci[0][1]
