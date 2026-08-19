@@ -466,19 +466,28 @@ def napravi_most_prefiks(csv_redovi):
     return most
 
 
+GENERICKE_RECI = {
+    "select", "strong", "corner", "corn", "day", "snack", "sweet",
+    "chef", "fresh", "gold", "classic", "premium", "natural", "extra",
+    "original", "special", "super", "max", "plus", "mini", "maxi",
+    "delikates", "family", "home", "kids", "bio", "eco", "light",
+}
+
+
 def brend_se_poklapa(brend, tokeni_drugog):
-    """Da li se brend Lidl artikla javlja u nazivu kod drugog lanca?
-    Bez ovoga se Lidl private label (Pilos, Milbona, Dulano...) lepi
-    na tudje proizvode - npr. 'PILOS Carski sir' na 'carski sir mk32'."""
+    """Da li se brend javlja u nazivu kod drugog lanca?
+
+    Trazimo poklapanje CELE reci - ne prefiksa - i ignorisemo genericke
+    reci ('select', 'strong'), jer bi inace 'CHEF SELECT salata'
+    pogodila 'sir kozji select milk'."""
     if not brend:
         return False
-    b = normalizuj_tokene(brend)
-    if not b:
+    kandidati = [t for t in normalizuj_tokene(brend)
+                 if len(t) >= 4 and t not in GENERICKE_RECI]
+    if not kandidati:
         return False
-    glavni = max(b, key=len)
-    if len(glavni) < 4:
-        return False
-    return any(t.startswith(glavni[:4]) or glavni.startswith(t[:4]) for t in tokeni_drugog if len(t) > 3)
+    drugi = set(tokeni_drugog)
+    return any(k in drugi for k in kandidati)
 
 
 def skor_slaganja(a, b):
