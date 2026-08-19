@@ -74,6 +74,12 @@ UNIVER_OBJEKAT = "MP004"        # Resavska 4, Novi Sad
 LIDL_API_URL = "https://www.lidl.rs/q/api/search"
 LIDL_FETCHSIZE = 100
 
+# Idea (Mercator-S): webshop API online.idea.rs. Najbolji izvor do
+# sada - daje BARKODOVE, akcijske cene i cenu po jedinici mere, pa se
+# spaja direktno kao Maxi, bez ikakvog mosta.
+IDEA_API = "https://online.idea.rs/v2"
+IDEA_PER_PAGE = 100
+
 # 10 velikih lanaca: prikazno ime -> slug na data.gov.rs
 LANCI = {
     "Lidl":            "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-13",
@@ -604,6 +610,87 @@ def preuzmi_lidl_sifarnik(urls):
     return None
 
 
+def izaberi_barkod(barcodes):
+    """Bira pravi EAN iz liste. Barkodovi koji pocinju sa 2 su interni
+    (roba na meru), koristimo ih samo ako nema pravog."""
+    if not barcodes:
+        return None
+    pravi = [b for b in barcodes if len(b) == 13 and b.isdigit() and not b.startswith("2")]
+    if pravi:
+        return pravi[0]
+    validni = [b for b in barcodes if b.isdigit() and len(b) >= 8]
+    return validni[0] if validni else None
+
+
+def preuzmi_idea_kategorije():
+    """Skup ID-jeva svih kategorija (rekurzivno kroz podkategorije)."""
+    ids = set()
+
+    def pokupi(cvor):
+        if isinstance(cvor, dict):
+            if isinstance(cvor.get("id"), int):
+                ids.add(cvor["id"])
+            for v in cvor.values():
+                pokupi(v)
+        elif isinstance(cvor, list):
+            for v in cvor:
+                pokupi(v)
+
+    try:
+        r = requests.get(f"{IDEA_API}/categories", headers={"User-Agent": USER_AGENT}, timeout=60)
+        r.raise_for_status()
+        pokupi(r.json())
+    except Exception as e:
+        log(f"[Idea] /categories neuspesno ({e}), koristim poznate ID-jeve")
+
+    if not ids:
+        ids = {60007924, 60007925, 60028453, 60014703, 60014227, 60011867, 60014705}
+    log(f"[Idea] {len(ids)} kategorija za obilazak")
+    return sorted(ids)
+
+
+def preuzmi_idea_api():
+    """Prolazi kroz kategorije i skuplja proizvode sa barkodom i cenom."""
+    po_bk = {}
+    kategorije = preuzmi_idea_kategorije()
+    for i, kat in enumerate(kategorije, 1):
+        strana = 1
+        while strana <= 40:
+            try:
+                r = requests.get(f"{IDEA_API}/categories/{kat}/products",
+                                 params={"per_page": IDEA_PER_PAGE, "page": strana},
+                                 headers={"User-Agent": USER_AGENT}, timeout=60)
+                if r.status_code != 200:
+                    break
+                payload = r.json()
+            except Exception:
+                break
+            proizvodi = payload.get("products") or []
+            if not proizvodi:
+                break
+            for pr in proizvodi:
+                bk = izaberi_barkod(pr.get("barcodes") or [])
+                if not bk:
+                    continue
+                iznos = ((pr.get("price") or {}).get("amount") or 0) / 100.0
+                if iznos <= 0:
+                    continue
+                kats = pr.get("categories") or []
+                kat_ime = kats[0].get("name", "") if kats else ""
+                if bk not in po_bk or iznos < po_bk[bk]["cena"]:
+                    po_bk[bk] = {"barkod": bk, "naziv": (pr.get("name") or "").strip(),
+                                 "brend": (pr.get("manufacturer") or "").strip(),
+                                 "kat": kat_ime, "cena": iznos}
+            info = payload.get("_page") or {}
+            if strana >= (info.get("page_count") or 1):
+                break
+            strana += 1
+        if i % 25 == 0:
+            log(f"[Idea API] {i}/{len(kategorije)} kategorija, {len(po_bk)} proizvoda")
+    log(f"[Idea API] ukupno {len(po_bk)} proizvoda sa barkodom i cenom")
+    return list(po_bk.values())
+
+
 def preuzmi_i_parsiraj(ime_lanca, url):
     """
     Skida ceo CSV (strim na disk), parsira red po red, i vraca listu
@@ -943,6 +1030,26 @@ def main():
         except Exception as e:
             statusi.append(f"[GRESKA] Lidl (API/sifarnik): {e}")
             log(f"[Lidl API] GRESKA: {e}")
+
+    # --- Idea: webshop API, ima barkodove pa ide direktno ---
+    try:
+        idea_artikli = preuzmi_idea_api()
+        for z in idea_artikli:
+            bk = z["barkod"]
+            if "Idea" not in po_barkodu[bk] or z["cena"] < po_barkodu[bk]["Idea"]:
+                po_barkodu[bk]["Idea"] = z["cena"]
+            if "_naziv" not in po_barkodu[bk]:
+                po_barkodu[bk]["_naziv"] = z["naziv"]
+                po_barkodu[bk]["_brend"] = z["brend"]
+                po_barkodu[bk]["_ikona"] = ikona_za(z["kat"], z["naziv"])
+        if idea_artikli:
+            statusi.append(f"[OK] Idea (webshop API): {len(idea_artikli)} artikala sa barkodom")
+            lanci_datumi["Idea"] = datetime.now().strftime("%d.%m.%Y.")
+        else:
+            statusi.append("[GRESKA] Idea API: nijedan artikal")
+    except Exception as e:
+        statusi.append(f"[GRESKA] Idea (API): {e}")
+        log(f"[Idea API] GRESKA: {e}")
 
     proizvodi = []
     for bk, podaci in po_barkodu.items():
