@@ -391,7 +391,7 @@ def napravi_most_naziv_barkod(csv_redovi):
     return most
 
 
-KOLICINA_RE = re.compile(r"^\d+[.,]?\d*(l|ml|g|kg|kom)$")
+KOLICINA_RE = re.compile(r"^\d+[.,]?\d*(l|ml|g|kg|kom|komad|komada|pranje|pranja)$")
 
 
 def normalizuj_tokene(naziv):
@@ -402,7 +402,7 @@ def normalizuj_tokene(naziv):
     n = n.replace(",", ".")
     n = re.sub(r"\bm\s*\.?\s*m\s*\.?", " ", n)
     n = re.sub(r"(?<!\d)\.|\.(?!\d)", " ", n)
-    n = re.sub(r"(\d)\s+(l|ml|g|kg)\b", r"\1\2", n)
+    n = re.sub(r"(\d)\s+(l|ml|g|kg|kom|komada?|pranja?)\b", r"\1kom" if False else r"\1\2", n)
     n = re.sub(r"[^a-z0-9%.]+", " ", n)
     n = re.sub(r"(?<=[a-z])(?=\d)", " ", n)
     return [t for t in n.split() if t != "."]
@@ -464,6 +464,22 @@ def napravi_most_prefiks(csv_redovi):
     for i, (g, v) in enumerate(list(most.items())[:6]):
         log(f"[Univer most] CSV primer {i+1}: grupa={g} naziv='{v[0][2]['naziv'][:55]}' tokeni={v[0][0][:8]}")
     return most
+
+
+def delimicno_slaganje(a, b, min_zajednickih=2):
+    """Blazi uslov od prefiks_slaganje: dovoljno je da se poklopi
+    bar N tokena (prefiksno). Koristi se kad poredimo nazive IZMEDJU
+    lanaca, gde se skracenice razlikuju ('deterdzent' vs 'det',
+    'posudje' vs 'sudove')."""
+    zajednickih = 0
+    preostali = list(b)
+    for t in a:
+        for i, p2 in enumerate(preostali):
+            if p2.startswith(t) or t.startswith(p2):
+                preostali.pop(i)
+                zajednickih += 1
+                break
+    return zajednickih >= min_zajednickih
 
 
 def preuzmi_lidl_api():
@@ -839,7 +855,7 @@ def main():
                         for k in most_svi_lanci.get((_r, _kol), []):
                             if k[1] in _vidjeni:
                                 continue
-                            if prefiks_slaganje(tok, k[0]) or prefiks_slaganje(k[0], tok):
+                            if delimicno_slaganje(tok, k[0], 2):
                                 _vidjeni.add(k[1])
                                 pogodci.append(k)
                 barkodovi = {k[1] for k in pogodci}
