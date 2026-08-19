@@ -855,6 +855,13 @@ def main():
                     dvosmislenih += 1
                 elif len(promasaji) < 8:
                     promasaji.append(a["naziv"])
+                    # detaljna dijagnostika: sta ima u istoj grupi?
+                    _kol = kolicina_iz(tok)
+                    _sve = []
+                    for _r in set(t[:4] for t in tok if len(t) > 3 and not t[0].isdigit()):
+                        for k in most_svi_lanci.get((_r, _kol), [])[:3]:
+                            _sve.append(" ".join(k[0])[:45])
+                    log(f"[Lidl dbg] '{a['naziv']}' tok={tok} kol={_kol} kandidati={_sve[:4]}")
             pct = (pogodaka / len(api) * 100) if api else 0
             log(f"[Lidl most] POKLAPANJE: {pogodaka}/{len(api)} ({pct:.1f}%), {dvosmislenih} dvosmislenih")
             if promasaji:
