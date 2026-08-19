@@ -451,11 +451,15 @@ def preuzmi_univer_api():
 
 def napravi_most_prefiks(csv_redovi):
     most = defaultdict(list)
+    vidjeni = set()
     for z in csv_redovi:
         tok = normalizuj_tokene(z["naziv"])
         g = kljuc_grupe(tok)
         if g:
-            most[g].append((tok, z["barkod"], z))
+            kljuc = (tuple(tok), z["barkod"])
+            if kljuc not in vidjeni:
+                vidjeni.add(kljuc)
+                most[g].append((tok, z["barkod"], z))
     log(f"[Univer most] {len(most)} grupa iz CSV-a")
     for i, (g, v) in enumerate(list(most.items())[:6]):
         log(f"[Univer most] CSV primer {i+1}: grupa={g} naziv='{v[0][2]['naziv'][:55]}' tokeni={v[0][0][:8]}")
@@ -536,6 +540,8 @@ def preuzmi_lidl_sifarnik(urls):
                         most[g].append((tok, ean, {"naziv": naz, "brend": "", "kat": ""}))
                         broj += 1
                 log(f"[Lidl sifarnik] resurs #{i}: {broj} EAN zapisa, {len(most)} grupa")
+                for j, (g, v) in enumerate(list(most.items())[:5]):
+                    log(f"[Lidl sifarnik] primer {j+1}: grupa={g} naziv='{v[0][2]['naziv'][:55]}'")
                 return most
         except Exception as e:
             log(f"[Lidl sifarnik] resurs #{i} preskocen: {e}")
@@ -771,7 +777,8 @@ def main():
                 tok = normalizuj_tokene(a["naziv"])
                 kandidati = most.get(kljuc_grupe(tok), [])
                 pogodci = [k for k in kandidati if prefiks_slaganje(tok, k[0])]
-                if len(pogodci) == 1:
+                barkodovi = {k[1] for k in pogodci}
+                if len(barkodovi) == 1:
                     bk, csv_z = pogodci[0][1], pogodci[0][2]
                     pogodaka += 1
                     po_barkodu[bk]["Univerexport"] = a["cena"]
@@ -779,7 +786,7 @@ def main():
                         po_barkodu[bk]["_naziv"] = csv_z["naziv"]
                         po_barkodu[bk]["_brend"] = csv_z.get("brend", "")
                         po_barkodu[bk]["_ikona"] = ikona_za(csv_z.get("kat", ""), csv_z["naziv"])
-                elif len(pogodci) > 1:
+                elif len(barkodovi) > 1:
                     dvosmislenih += 1
                 elif len(promasaji) < 8:
                     promasaji.append(a["naziv"])
@@ -809,7 +816,8 @@ def main():
                 tok = normalizuj_tokene(a["naziv"])
                 kandidati = most.get(kljuc_grupe(tok), [])
                 pogodci = [k for k in kandidati if prefiks_slaganje(tok, k[0])]
-                if len(pogodci) == 1:
+                barkodovi = {k[1] for k in pogodci}
+                if len(barkodovi) == 1:
                     bk = pogodci[0][1]
                     pogodaka += 1
                     po_barkodu[bk]["Lidl"] = a["cena"]
@@ -817,7 +825,7 @@ def main():
                         po_barkodu[bk]["_naziv"] = a["naziv"]
                         po_barkodu[bk]["_brend"] = a["brend"]
                         po_barkodu[bk]["_ikona"] = ikona_za("", a["naziv"])
-                elif len(pogodci) > 1:
+                elif len(barkodovi) > 1:
                     dvosmislenih += 1
                 elif len(promasaji) < 8:
                     promasaji.append(a["naziv"])
