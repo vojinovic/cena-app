@@ -806,16 +806,33 @@ def main():
     # --- Lidl: svez API + barkod preko EAN sifarnika sa portala ---
     if lidl_urls:
         try:
-            most = preuzmi_lidl_sifarnik(lidl_urls)
-            if not most:
-                raise RuntimeError("nema resursa sa EANCODE kolonom")
+            most = preuzmi_lidl_sifarnik(lidl_urls) or defaultdict(list)
+            # Lidl sifarnik pokriva samo svezu/rinfuznu robu, pa kao
+            # drugi izvor koristimo nazive SVIH ostalih lanaca -
+            # brendirana roba (Ariel, Fairy...) se tako moze spojiti.
+            most_svi_lanci = defaultdict(list)
+            vidjeni_bk = set()
+            for _bk, _pod in po_barkodu.items():
+                _naz = _pod.get("_naziv")
+                if not _naz or _bk in vidjeni_bk:
+                    continue
+                vidjeni_bk.add(_bk)
+                _tok = normalizuj_tokene(_naz)
+                _g = kljuc_grupe(_tok)
+                if _g:
+                    most_svi_lanci[_g].append((_tok, _bk, _pod))
+            log(f"[Lidl most] {len(most_svi_lanci)} grupa iz ostalih lanaca")
             api = preuzmi_lidl_api()
             pogodaka, dvosmislenih = 0, 0
             promasaji = []
             for a in api:
                 tok = normalizuj_tokene(a["naziv"])
-                kandidati = most.get(kljuc_grupe(tok), [])
+                g = kljuc_grupe(tok)
+                kandidati = most.get(g, [])
                 pogodci = [k for k in kandidati if prefiks_slaganje(tok, k[0])]
+                if not pogodci:
+                    kandidati = most_svi_lanci.get(g, [])
+                    pogodci = [k for k in kandidati if prefiks_slaganje(tok, k[0])]
                 barkodovi = {k[1] for k in pogodci}
                 if len(barkodovi) == 1:
                     bk = pogodci[0][1]
