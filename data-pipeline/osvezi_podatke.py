@@ -466,6 +466,21 @@ def napravi_most_prefiks(csv_redovi):
     return most
 
 
+def brend_se_poklapa(brend, tokeni_drugog):
+    """Da li se brend Lidl artikla javlja u nazivu kod drugog lanca?
+    Bez ovoga se Lidl private label (Pilos, Milbona, Dulano...) lepi
+    na tudje proizvode - npr. 'PILOS Carski sir' na 'carski sir mk32'."""
+    if not brend:
+        return False
+    b = normalizuj_tokene(brend)
+    if not b:
+        return False
+    glavni = max(b, key=len)
+    if len(glavni) < 4:
+        return False
+    return any(t.startswith(glavni[:4]) or glavni.startswith(t[:4]) for t in tokeni_drugog if len(t) > 3)
+
+
 def skor_slaganja(a, b):
     """Broj tokena koji se poklapaju (prefiksno). Sto vise, to bolje."""
     skor = 0
@@ -868,7 +883,7 @@ def main():
                         for k in most_svi_lanci.get((_r, _kol), []):
                             if k[1] in _vidjeni:
                                 continue
-                            if delimicno_slaganje(tok, k[0], 2):
+                            if delimicno_slaganje(tok, k[0], 2) and brend_se_poklapa(a["brend"], k[0]):
                                 _vidjeni.add(k[1])
                                 pogodci.append(k)
                 barkodovi = {k[1] for k in pogodci}
