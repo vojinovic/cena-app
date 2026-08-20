@@ -1076,7 +1076,8 @@ def main():
         idea_artikli = preuzmi_idea_api()
         for z in idea_artikli:
             bk = z["barkod"]
-            if "Idea" not in po_barkodu[bk] or z["cena"] < po_barkodu[bk]["Idea"]:
+            # sveza cena sa webshopa UVEK pregazi staru portal cenu
+            if True:
                 po_barkodu[bk]["Idea"] = z["cena"]
                 po_barkodu[bk]["_prov_Idea"] = EAN_DIRECT
                 if z.get("akcija"):
