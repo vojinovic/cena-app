@@ -838,6 +838,76 @@ def preuzmi_i_parsiraj(ime_lanca, url):
         os.unlink(tmp_path)
 
 
+# ============================================================
+# DETEKTOR NOVIH IZVORA
+# Lanci koji nam jos fale. Zakon (cl. 6) ih obavezuje da objave
+# cenovnik na sajtu I na portalu; ministarka je najavila da od
+# septembra 2026. mora svakodnevno. Ovo svako jutro proveri da li
+# se nesto pojavilo, da ne moramo rucno da pratimo.
+# ============================================================
+LANCI_KOJI_FALE = {
+    "Roda": ["https://roda.rs/cenovnik", "https://roda.rs/cenovnici",
+             "https://www.roda.rs/Cenovnik"],
+    "Mercator": ["https://mercator.rs/cenovnik", "https://www.mercator.rs/Cenovnik"],
+    "Gomex": ["https://gomex.rs/cenovnik", "https://www.gomex.rs/cenovnici"],
+    "Aman": ["https://aman.co.rs/cenovnik", "https://www.aman.co.rs/cenovnici"],
+    "Veropoulos": ["https://www.veropoulos.rs/cenovnik"],
+    "Fortuna": ["https://fortunamarket.rs/cenovnik"],
+    "Idea (zakonski)": ["https://www.idea.rs/cenovnik-objekat",
+                        "https://www.idea.rs/jedinicna-cena-artikala"],
+}
+
+ZNACI_CENOVNIKA = ("csv", "cenovnik", "cjenik", "preuzmi", "download", "xml")
+
+
+def detektuj_nove_izvore():
+    """Proverava sajtove lanaca koji nam fale + portal za nove datasete."""
+    nalazi = []
+
+    for lanac, urls in LANCI_KOJI_FALE.items():
+        for url in urls:
+            try:
+                r = requests.get(url, timeout=20, allow_redirects=True,
+                                 headers={"User-Agent": USER_AGENT})
+                if r.status_code != 200 or len(r.content) < 500:
+                    continue
+                tekst = r.text.lower()
+                pogodci = [z for z in ZNACI_CENOVNIKA if z in tekst]
+                if len(pogodci) >= 2:
+                    nalazi.append(f"NOVO? {lanac}: {url} vraca 200 "
+                                  f"({len(r.content)//1024} KB, sadrzi: {', '.join(pogodci[:4])})")
+                    break
+            except requests.exceptions.RequestException:
+                continue
+
+    for ime, slug in LANCI.items():
+        if ime in ("Domaća trgovina",):
+            continue
+        try:
+            r = requests.get(API_URL.format(slug=slug),
+                             headers={"User-Agent": USER_AGENT}, timeout=30)
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            zadnja = (data.get("last_modified") or data.get("last_update") or "")[:10]
+            if zadnja:
+                d = parsiraj_datum(zadnja)
+                if d and (datetime.now() - d).days <= 14:
+                    nalazi.append(f"NOVO? {ime}: portal dataset osvezen {zadnja}")
+        except Exception:
+            continue
+
+    if nalazi:
+        log("")
+        log("=" * 60)
+        for n in nalazi:
+            log(f"[Detektor] {n}")
+        log("=" * 60)
+    else:
+        log("[Detektor] nista novo (Roda, Gomex, Aman, Veropoulos, Fortuna i dalje cute)")
+    return nalazi
+
+
 def main():
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     template_path = os.path.join(repo_root, "app", "template.html")
@@ -1245,6 +1315,8 @@ def main():
 
     log(f"Stranica regenerisana: {izlaz_path} "
         f"({os.path.getsize(izlaz_path) / 1024:.0f} KB)")
+    detektuj_nove_izvore()
+
     log("\nStatusi:")
     for s in statusi:
         log("  " + s)
