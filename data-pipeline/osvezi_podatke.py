@@ -88,6 +88,14 @@ EAN_DIRECT = "ean"
 CODE_BRIDGE = "code"
 NAME_MATCH = "name"
 
+# Obogacivanje: otvorena baza normalizovanih proizvoda iz projekta
+# cijene.dev (Hrvatska). Barkod je globalan standard, pa njihovi podaci
+# vaze i za nase artikle - dobijamo cist naziv, brend i KOLICINU
+# (koja nam otvara cenu po jedinici mere).
+# Licenca: CC BY-NC-SA 4.0 - nekomercijalno, uz obaveznu atribuciju.
+ENRICH_URL = ("https://raw.githubusercontent.com/senko/cijene-api/"
+              "main/enrichment/products.csv")
+
 # Idea (Mercator-S): webshop API online.idea.rs. Najbolji izvor do
 # sada - daje BARKODOVE, akcijske cene i cenu po jedinici mere, pa se
 # spaja direktno kao Maxi, bez ikakvog mosta.
@@ -665,6 +673,31 @@ def preuzmi_idea_kategorije():
     return sorted(ids)
 
 
+def preuzmi_enrichment():
+    """Mapa barkod -> {naziv, brend, kolicina, jedinica} iz cijene.dev baze."""
+    try:
+        r = requests.get(ENRICH_URL, headers={"User-Agent": USER_AGENT}, timeout=90)
+        r.raise_for_status()
+        rdr = csv.DictReader(io.StringIO(r.content.decode("utf-8-sig", errors="replace")))
+        baza = {}
+        for row in rdr:
+            bk = (row.get("barcode") or "").strip()
+            naziv = (row.get("name") or "").strip()
+            if not bk or not naziv:
+                continue
+            try:
+                kol = float(row.get("quantity") or 0)
+            except ValueError:
+                kol = 0
+            baza[bk] = {"naziv": naziv, "brend": (row.get("brand") or "").strip(),
+                        "kolicina": kol, "jedinica": (row.get("unit") or "").strip()}
+        log(f"[Enrich] ucitano {len(baza)} normalizovanih proizvoda")
+        return baza
+    except Exception as e:
+        log(f"[Enrich] neuspesno ({e}) - nastavljam bez obogacivanja")
+        return {}
+
+
 def preuzmi_idea_api():
     """Prolazi kroz kategorije i skuplja proizvode sa barkodom i cenom."""
     po_bk = {}
@@ -1114,6 +1147,26 @@ def main():
     samo_jedan = sum(1 for _p in po_barkodu.values() if len([t for t in _p if not t.startswith("_")]) == 1)
     log(f"[Dijag] barkodova samo kod 1 lanca: {samo_jedan} od {len(po_barkodu)}")
 
+    # --- obogacivanje naziva/brenda/kolicine po barkodu ---
+    enrich = preuzmi_enrichment()
+    obogaceno = 0
+    for _bk, _pod in po_barkodu.items():
+        e = enrich.get(_bk)
+        if not e:
+            continue
+        obogaceno += 1
+        _pod["_naziv"] = e["naziv"]
+        if e["brend"]:
+            _pod["_brend"] = e["brend"]
+        if e["kolicina"] > 0 and e["jedinica"]:
+            _pod["_kol"] = e["kolicina"]
+            _pod["_jm"] = e["jedinica"]
+        if _pod.get("_ikona", "🛒") == "🛒":
+            _pod["_ikona"] = ikona_za("", e["naziv"])
+    if enrich:
+        log(f"[Enrich] obogaceno {obogaceno} od {len(po_barkodu)} proizvoda "
+            f"({obogaceno/len(po_barkodu)*100:.1f}%)")
+
     odbaceno_sumnjivih = [0]
     proizvodi = []
     for bk, podaci in po_barkodu.items():
@@ -1154,7 +1207,15 @@ def main():
         # Heuristicki match nikad ne "pobedjuje" - priblizne cene idu
         # iza pouzdanih, pa oznaka "najjeftinije" pripada proverenoj.
         cene.sort(key=lambda x: (len(x) > 3, x[1]))
-        proizvodi.append([podaci["_naziv"], podaci["_brend"], cene, podaci.get("_ikona", "🛒")])
+        stavka = [podaci["_naziv"], podaci["_brend"], cene, podaci.get("_ikona", "🛒")]
+        # peti element: "X RSD/kg" - iz najjeftinije pouzdane cene
+        kol, jm = podaci.get("_kol"), podaci.get("_jm")
+        if kol and jm:
+            pouzdane_c = [c[1] for c in cene if len(c) <= 3]
+            if pouzdane_c:
+                po_jm = min(pouzdane_c) / kol
+                stavka.append(f"{po_jm:,.0f}".replace(",", ".") + f" RSD/{jm}")
+        proizvodi.append(stavka)
 
     proizvodi.sort(key=lambda x: -len(x[2]))
     if odbaceno_sumnjivih[0]:
