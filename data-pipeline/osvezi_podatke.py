@@ -100,7 +100,7 @@ ENRICH_URL = ("https://raw.githubusercontent.com/senko/cijene-api/"
 # kao Maxi, bez mostova. Obrazac: .../cenovnici/8/{SIFRA}.csv
 # Sifre objekata se vide na gomex.rs/cenovnici (293 prodavnice).
 GOMEX_URL = "https://files.insby.tech/phoebe/cenovnici/8/{sifra}.csv"
-GOMEX_OBJEKTI = ["101", "104"]     # Zrenjanin; dodati BG/NS kad znamo sifre
+GOMEX_OBJEKTI = ["213", "101"]     # 213 Mirijevo (BG), 101 Gradnulica (Zrenjanin)
 
 # Idea (Mercator-S): webshop API online.idea.rs. Najbolji izvor do
 # sada - daje BARKODOVE, akcijske cene i cenu po jedinici mere, pa se
