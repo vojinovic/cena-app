@@ -265,16 +265,12 @@
 
   /* signature: zuta etiketa */
   .badge-best {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    background: var(--etiketa);
-    color: var(--etiketa-ink);
-    padding: 2.5px 7px 2px;
-    border-radius: 5px 5px 5px 2px;
-    flex-shrink: 0;
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--zelena);
+    margin-left: 7px;
+    vertical-align: middle;
   }
 
   .more-toggle {
@@ -556,7 +552,7 @@ function napraviRed(c, i) {
   // tise i nikad je ne proglasavamo najjeftinijom
   const priblizno = c.length > 3;
   const cls = (i === 0 && !priblizno ? 'best ' : '') + (priblizno ? 'priblizno' : '');
-  const badge = (i === 0 && !priblizno) ? '<span class="badge-best">najjeftinije</span>' : '';
+  const badge = (i === 0 && !priblizno) ? '<span class="badge-best" title="najniza cena"></span>' : '';
   const akcija = c[2] ? '<span class="badge-akcija">' + c[2] + '</span>' : '';
   const pribl = priblizno ? '<span class="badge-priblizno" title="Cena je povezana po nazivu proizvoda, ne po barkodu">~</span>' : '';
   return '<div class="row ' + cls + '"><span class="store">' + c[0] + badge + akcija + pribl + '</span><span class="price">' + formatCena(c[1]) + ' RSD</span></div>';
