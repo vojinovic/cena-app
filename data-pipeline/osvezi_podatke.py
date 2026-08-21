@@ -96,6 +96,12 @@ NAME_MATCH = "name"
 ENRICH_URL = ("https://raw.githubusercontent.com/senko/cijene-api/"
               "main/enrichment/products.csv")
 
+# Gomex: zakonski cenovnik po objektu, CSV sa BARKODOM - ide direktno
+# kao Maxi, bez mostova. Obrazac: .../cenovnici/8/{SIFRA}.csv
+# Sifre objekata se vide na gomex.rs/cenovnici (293 prodavnice).
+GOMEX_URL = "https://files.insby.tech/phoebe/cenovnici/8/{sifra}.csv"
+GOMEX_OBJEKTI = ["101", "104"]     # Zrenjanin; dodati BG/NS kad znamo sifre
+
 # Idea (Mercator-S): webshop API online.idea.rs. Najbolji izvor do
 # sada - daje BARKODOVE, akcijske cene i cenu po jedinici mere, pa se
 # spaja direktno kao Maxi, bez ikakvog mosta.
@@ -110,7 +116,7 @@ LANCI = {
     # Maxi vise NE ide preko portala (zastareo, feb 2026) — ima direktan
     # dnevni izvor na static.maxi.rs, vidi preuzmi_maxi_direktno()
     "Univerexport":    "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-12",
-    "Gomex":           "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-23",
+    # Gomex ide preko direktnog izvora (vidi preuzmi_gomex)
     "Aman":            "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-16",
     "Veropoulos":      "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-29",
     "Fortuna Market":  "cenovnici-proizvoda-po-uredbi-o-obaveznoj-evidenciji-i-dostavljanju-cena-30",
@@ -698,6 +704,57 @@ def preuzmi_enrichment():
         return {}
 
 
+def preuzmi_gomex():
+    """Cenovnik Gomex objekata (CSV sa barkodom, delimiter ;)."""
+    po_bk = {}
+    najnoviji = None
+    for sifra in GOMEX_OBJEKTI:
+        try:
+            r = requests.get(GOMEX_URL.format(sifra=sifra),
+                             headers={"User-Agent": USER_AGENT}, timeout=60)
+            if r.status_code != 200 or len(r.content) < 1000:
+                log(f"[Gomex] objekat {sifra}: HTTP {r.status_code}")
+                continue
+            tekst = r.content.decode("utf-8-sig", errors="replace")
+            rdr = csv.DictReader(io.StringIO(tekst), delimiter=";")
+            col_bk = nadji_kolonu(rdr.fieldnames, ["barkod"])
+            col_naz = nadji_kolonu(rdr.fieldnames, ["naziv_artikla"])
+            col_red = nadji_kolonu(rdr.fieldnames, ["redovna_cena"])
+            col_akc = nadji_kolonu(rdr.fieldnames, ["akcijska_cena"])
+            col_dat = nadji_kolonu(rdr.fieldnames, ["poslednja_promena"])
+            if not col_bk or not col_red:
+                log(f"[Gomex] neocekivan header: {rdr.fieldnames}")
+                continue
+
+            broj = 0
+            for row in rdr:
+                bk = (row.get(col_bk) or "").strip()
+                if not bk or not bk.isdigit() or len(bk) < 8:
+                    continue
+                redovna = parsiraj_cenu(row.get(col_red))
+                akcijska = parsiraj_cenu(row.get(col_akc)) if col_akc else None
+                if redovna is None or redovna <= 0:
+                    continue
+                cena = akcijska if (akcijska and 0 < akcijska < redovna) else redovna
+                d = parsiraj_datum(row.get(col_dat) or "") if col_dat else None
+                if d and (najnoviji is None or d > najnoviji):
+                    najnoviji = d
+                if bk not in po_bk or cena < po_bk[bk]["cena"]:
+                    po_bk[bk] = {
+                        "barkod": bk,
+                        "naziv": (row.get(col_naz) or "").strip(),
+                        "brend": "", "kat": "", "cena": cena,
+                        "akcija": "akcija" if (akcijska and 0 < akcijska < redovna) else None,
+                    }
+                broj += 1
+            log(f"[Gomex] objekat {sifra}: {broj} artikala")
+        except Exception as e:
+            log(f"[Gomex] objekat {sifra} preskocen: {e}")
+
+    log(f"[Gomex] ukupno {len(po_bk)} jedinstvenih artikala")
+    return list(po_bk.values()), (najnoviji or datetime.now())
+
+
 def preuzmi_idea_api():
     """Prolazi kroz kategorije i skuplja proizvode sa barkodom i cenom."""
     po_bk = {}
@@ -1173,6 +1230,29 @@ def main():
         except Exception as e:
             statusi.append(f"[GRESKA] Lidl (API/sifarnik): {e}")
             log(f"[Lidl API] GRESKA: {e}")
+
+    # --- Gomex: zakonski CSV po objektu, ima barkod ---
+    try:
+        gomex_artikli, gomex_datum = preuzmi_gomex()
+        for z in gomex_artikli:
+            bk = z["barkod"]
+            po_barkodu[bk]["Gomex"] = z["cena"]
+            po_barkodu[bk]["_prov_Gomex"] = EAN_DIRECT
+            if z.get("akcija"):
+                po_barkodu[bk]["_akcija_Gomex"] = z["akcija"]
+            if "_naziv" not in po_barkodu[bk]:
+                po_barkodu[bk]["_naziv"] = z["naziv"]
+                po_barkodu[bk]["_brend"] = ""
+                po_barkodu[bk]["_ikona"] = ikona_za("", z["naziv"])
+        if gomex_artikli:
+            statusi.append(f"[OK] Gomex (direktno sa gomex.rs): {len(gomex_artikli)} artikala, "
+                           f"datum {gomex_datum.date()}")
+            lanci_datumi["Gomex"] = gomex_datum.strftime("%d.%m.%Y.")
+        else:
+            statusi.append("[GRESKA] Gomex: nijedan artikal")
+    except Exception as e:
+        statusi.append(f"[GRESKA] Gomex: {e}")
+        log(f"[Gomex] GRESKA: {e}")
 
     # --- Idea: webshop API, ima barkodove pa ide direktno ---
     try:
