@@ -400,6 +400,16 @@
     font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700;
     letter-spacing: .07em; text-transform: uppercase; color: var(--siva); margin: 22px 0 10px;
   }
+  .najbolja-napomena {
+    background: #fdf6e3;
+    border: 1px solid #f0e4c0;
+    border-radius: 10px;
+    padding: 10px 13px;
+    font-size: 12.5px;
+    color: #6b5b2a;
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
   .korpa-prazna { text-align: center; color: var(--siva); padding: 40px 20px; }
 
 
@@ -706,10 +716,17 @@ function prikaziKorpu() {
     ime: l, zbir: zbir[l], ima: imaju[l], puna: imaju[l] === ukupno
   })).sort((a, b) => (b.puna - a.puna) || (b.ima - a.ima) || (a.zbir - b.zbir));
 
+  const maxPokrivenost = lanci.length ? lanci[0].ima : 0;
   let html = '<div class="korpa-naslov-sekcija">Ukupan račun po lancu</div>';
+  if (maxPokrivenost < ukupno) {
+    html += '<div class="najbolja-napomena">Nijedan lanac nema sve iz korpe. ' +
+      'Prvi na listi ima najviše proizvoda po najnižoj ceni — cene se odnose ' +
+      'samo na proizvode koje taj lanac ima.</div>';
+  }
   let prvi = true;
   lanci.slice(0, 10).forEach(l => {
-    const pob = l.puna && prvi;
+    // pobednik = najveca pokrivenost, pa najniza cena (i kad niko nema sve)
+    const pob = l.ima === maxPokrivenost && prvi;
     if (pob) prvi = false;
     const fali = ukupno - l.ima;
     html += '<div class="lanac-red' + (pob ? ' pobednik' : '') + '">' +
